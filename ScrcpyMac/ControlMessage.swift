@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 /// Encoders for scrcpy's client-to-device control protocol (v3.3.4). All
 /// multi-byte fields are big-endian. Coordinates are in *device* pixel space,
@@ -11,6 +12,13 @@ enum ControlMessage {
     static let typeInjectTouchEvent: UInt8  = 2
     static let typeInjectScrollEvent: UInt8 = 3
     static let typeBackOrScreenOn: UInt8    = 4
+    static let typeSetClipboard: UInt8      = 9
+
+    // Android KeyEvent actions scrcpy accepts for keyboard injection.
+    enum KeyAction: UInt8 {
+        case down = 0
+        case up = 1
+    }
 
     // Android MotionEvent actions scrcpy accepts for touch injection.
     enum TouchAction: UInt8 {
@@ -25,6 +33,47 @@ enum ControlMessage {
     // Virtual pointer id scrcpy reserves for mouse input — keeps mouse taps
     // distinguishable from real multitouch pointers.
     static let pointerIdMouse: UInt64 = 0xFFFFFFFFFFFFFFFF  // (long)-1
+
+    /// Build an INJECT_KEYCODE packet.
+    static func injectKeycode(
+        action: KeyAction,
+        keycode: Int32,
+        repeatCount: Int32 = 0,
+        metaState: Int32 = 0
+    ) -> Data {
+        var d = Data()
+        d.reserveCapacity(14)
+        d.appendBE(typeInjectKeycode)
+        d.appendBE(action.rawValue)
+        d.appendBE(UInt32(bitPattern: keycode))
+        d.appendBE(UInt32(bitPattern: repeatCount))
+        d.appendBE(UInt32(bitPattern: metaState))
+        return d
+    }
+
+    /// Build an INJECT_TEXT packet using a UTF-8 payload with a u32 byte length.
+    static func injectText(_ text: String) -> Data? {
+        guard let utf8 = text.data(using: .utf8) else { return nil }
+        var d = Data()
+        d.reserveCapacity(5 + utf8.count)
+        d.appendBE(typeInjectText)
+        d.appendBE(UInt32(utf8.count))
+        d.append(utf8)
+        return d
+    }
+
+    /// Build a SET_CLIPBOARD packet and optionally request immediate paste.
+    static func setClipboard(sequence: UInt64, text: String, paste: Bool) -> Data? {
+        guard let utf8 = text.data(using: .utf8) else { return nil }
+        var d = Data()
+        d.reserveCapacity(14 + utf8.count)
+        d.appendBE(typeSetClipboard)
+        d.appendBE(sequence)
+        d.appendBE(paste ? UInt8(1) : UInt8(0))
+        d.appendBE(UInt32(utf8.count))
+        d.append(utf8)
+        return d
+    }
 
     /// Build an INJECT_TOUCH_EVENT packet for a single-finger/mouse action.
     /// - Parameters:
@@ -91,6 +140,113 @@ enum ControlMessage {
         let clamped = max(-1.0, min(1.0, f))
         let scaled = clamped * Float(Int16.max)
         return UInt16(bitPattern: Int16(scaled))
+    }
+}
+
+/// Minimal AppKit -> Android key mapping for scrcpy keyboard injection.
+enum AndroidKeycode {
+    static let metaShiftOn: Int32 = 0x00000001
+    static let metaAltOn: Int32 = 0x00000002
+    static let metaCtrlOn: Int32 = 0x00001000
+    static let metaMetaOn: Int32 = 0x00010000
+    static let keycodeV: Int32 = 50
+
+    static func map(event: NSEvent) -> (keycode: Int32, metaState: Int32)? {
+        if let override = commandShortcutOverride(for: event) {
+            return override
+        }
+        let keycode = mapSpecialKey(event) ?? mapCharacterKey(event)
+        guard let keycode else { return nil }
+        return (keycode, metaState(for: event.modifierFlags))
+    }
+
+    private static func commandShortcutOverride(for event: NSEvent) -> (keycode: Int32, metaState: Int32)? {
+        guard event.modifierFlags.contains(.command),
+              let chars = event.charactersIgnoringModifiers?.uppercased(),
+              chars == "V" else {
+            return nil
+        }
+        return (keycodeV, metaCtrlOn)
+    }
+
+    private static func mapSpecialKey(_ event: NSEvent) -> Int32? {
+        switch Int(event.keyCode) {
+        case 36: return 66   // Enter
+        case 48: return 61   // Tab
+        case 49: return 62   // Space
+        case 51: return 67   // Delete/Backspace
+        case 53: return 4    // Escape/Back
+        case 123: return 21  // Left
+        case 124: return 22  // Right
+        case 125: return 20  // Down
+        case 126: return 19  // Up
+        case 115: return 122 // Home
+        case 116: return 92  // Page Up
+        case 119: return 93  // Page Down
+        case 121: return 123 // End
+        default:
+            break
+        }
+
+        guard let chars = event.charactersIgnoringModifiers, chars.count == 1,
+              let scalar = chars.unicodeScalars.first else {
+            return nil
+        }
+
+        switch scalar.value {
+        case 0xF700: return 19  // Up
+        case 0xF701: return 20  // Down
+        case 0xF702: return 21  // Left
+        case 0xF703: return 22  // Right
+        default: return nil
+        }
+    }
+
+    private static func mapCharacterKey(_ event: NSEvent) -> Int32? {
+        guard let chars = event.charactersIgnoringModifiers?.uppercased(), chars.count == 1,
+              let scalar = chars.unicodeScalars.first else {
+            return nil
+        }
+
+        switch scalar.value {
+        case 65...90:
+            return Int32(29 + scalar.value - 65) // A-Z
+        case 48...57:
+            return scalar.value == 48 ? 7 : Int32(scalar.value - 49 + 8) // 0-9
+        case 45:
+            return 69 // Minus
+        case 61:
+            return 70 // Equals
+        case 91:
+            return 71 // Left bracket
+        case 93:
+            return 72 // Right bracket
+        case 92:
+            return 73 // Backslash
+        case 59:
+            return 74 // Semicolon
+        case 39:
+            return 75 // Apostrophe
+        case 44:
+            return 55 // Comma
+        case 46:
+            return 56 // Period
+        case 47:
+            return 76 // Slash
+        case 96:
+            return 68 // Grave
+        default:
+            return nil
+        }
+    }
+
+    private static func metaState(for flags: NSEvent.ModifierFlags) -> Int32 {
+        var state: Int32 = 0
+        if flags.contains(.shift) { state |= metaShiftOn }
+        if flags.contains(.option) { state |= metaAltOn }
+        if flags.contains(.control) { state |= metaCtrlOn }
+        if flags.contains(.command) { state |= metaMetaOn }
+        return state
     }
 }
 

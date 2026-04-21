@@ -12,12 +12,19 @@ final class SampleBufferHostView: NSView {
     /// the device and emits a ControlMessage. `isPressed` mirrors the left
     /// button state for touch DOWN/MOVE/UP semantics.
     var onPointerEvent: ((PointerEvent) -> Void)?
+    var onKeyEvent: ((KeyEvent) -> Void)?
 
     struct PointerEvent {
         enum Kind { case down, move, up, scroll(hScroll: Float, vScroll: Float) }
         let kind: Kind
         let location: CGPoint
         let viewSize: CGSize
+    }
+
+    struct KeyEvent {
+        enum Kind { case down, up }
+        let kind: Kind
+        let event: NSEvent
     }
 
     override init(frame frameRect: NSRect) {
@@ -47,6 +54,7 @@ final class SampleBufferHostView: NSView {
     // MARK: - Mouse events
 
     override func mouseDown(with event: NSEvent) {
+        window?.makeFirstResponder(self)
         emit(.down, event: event)
     }
 
@@ -70,6 +78,14 @@ final class SampleBufferHostView: NSView {
         ))
     }
 
+    override func keyDown(with event: NSEvent) {
+        onKeyEvent?(KeyEvent(kind: .down, event: event))
+    }
+
+    override func keyUp(with event: NSEvent) {
+        onKeyEvent?(KeyEvent(kind: .up, event: event))
+    }
+
     private func emit(_ kind: PointerEvent.Kind, event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
         onPointerEvent?(PointerEvent(kind: kind, location: p, viewSize: bounds.size))
@@ -83,12 +99,14 @@ struct MirrorView: NSViewRepresentable {
 
     var onLayerReady: (AVSampleBufferDisplayLayer) -> Void
     var onPointerEvent: (SampleBufferHostView.PointerEvent) -> Void
+    var onKeyEvent: (SampleBufferHostView.KeyEvent) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeNSView(context: Context) -> SampleBufferHostView {
         let v = SampleBufferHostView(frame: .zero)
         v.onPointerEvent = onPointerEvent
+        v.onKeyEvent = onKeyEvent
         context.coordinator.hostView = v
         DispatchQueue.main.async { [layer = v.displayLayer] in
             onLayerReady(layer)
@@ -98,5 +116,6 @@ struct MirrorView: NSViewRepresentable {
 
     func updateNSView(_ nsView: SampleBufferHostView, context: Context) {
         nsView.onPointerEvent = onPointerEvent
+        nsView.onKeyEvent = onKeyEvent
     }
 }

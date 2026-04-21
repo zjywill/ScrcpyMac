@@ -2,6 +2,66 @@ import Foundation
 import Network
 import AVFoundation
 
+struct SessionOptions {
+    var audioOnly: Bool = false
+    var videoOnly: Bool = false
+
+    var wantsVideo: Bool { !audioOnly }
+    var wantsAudio: Bool { !videoOnly }
+}
+
+/// Minimal PCM player for scrcpy raw audio: 48kHz, stereo, 16-bit little-endian.
+final class AudioPlayer {
+    private let engine = AVAudioEngine()
+    private let player = AVAudioPlayerNode()
+    private let format = AVAudioFormat(commonFormat: .pcmFormatInt16,
+                                       sampleRate: 48_000,
+                                       channels: 2,
+                                       interleaved: true)!
+    private var started = false
+
+    init() {
+        engine.attach(player)
+        engine.connect(player, to: engine.mainMixerNode, format: format)
+    }
+
+    func start() throws {
+        guard !started else { return }
+        try engine.start()
+        player.play()
+        started = true
+    }
+
+    func stop() {
+        player.stop()
+        engine.stop()
+        engine.reset()
+        started = false
+    }
+
+    func enqueuePCM(_ data: Data) {
+        guard started, !data.isEmpty else { return }
+        let bytesPerFrame = Int(format.streamDescription.pointee.mBytesPerFrame)
+        guard bytesPerFrame > 0, data.count % bytesPerFrame == 0 else { return }
+
+        let frameCapacity = AVAudioFrameCount(data.count / bytesPerFrame)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCapacity) else {
+            return
+        }
+        buffer.frameLength = frameCapacity
+
+        data.withUnsafeBytes { rawBuffer in
+            guard let src = rawBuffer.baseAddress,
+                  let channelData = buffer.int16ChannelData else {
+                return
+            }
+            memcpy(channelData.pointee, src, data.count)
+        }
+
+        player.scheduleBuffer(buffer, completionHandler: nil)
+    }
+}
+
 /// Orchestrates a single scrcpy-server session:
 ///   1. adb push scrcpy-server.jar
 ///   2. adb forward tcp:<local> -> localabstract:scrcpy_<scid>
@@ -46,40 +106,52 @@ final class ScrcpySession: ObservableObject {
 
     private var serverProcess: Process?
     private var videoConnection: NWConnection?
+    private var audioConnection: NWConnection?
     private var controlConnection: NWConnection?
     private var receivedBuffer = Data()
     private var videoPumpTask: Task<Void, Never>?
+    private var audioPumpTask: Task<Void, Never>?
     private let decoder = H264Decoder()
+    private let audioPlayer = AudioPlayer()
     private var localPort: UInt16 = 0
     private var serial: String = ""
     private var scid: UInt32 = 0
+    private var runToken: UInt64 = 0
+    private var clipboardSequence: UInt64 = 0
+    private var options = SessionOptions()
 
     init(toolchain: Toolchain) {
         self.toolchain = toolchain
         self.adb = AdbBridge(adbURL: toolchain.adbURL)
     }
 
-    func start(serial: String) {
-        guard case .idle = state else { return }
+    func start(serial: String, options: SessionOptions = SessionOptions()) {
+        switch state {
+        case .idle, .failed:
+            break
+        default:
+            return
+        }
+
+        runToken &+= 1
         self.serial = serial
+        self.options = options
         self.scid = UInt32.random(in: 0x0000_0001...0x7FFF_FFFF)
         self.localPort = UInt16.random(in: 27183...27199)
         self.receivedBuffer = Data()
-        Task { await self.run() }
+        self.log = ""
+        let token = runToken
+        Task { await self.run(token: token) }
     }
 
     func stop() {
         appendLog("[session] stop requested")
-        videoPumpTask?.cancel()
-        videoPumpTask = nil
-        serverProcess?.terminate()
-        videoConnection?.cancel()
-        videoConnection = nil
-        controlConnection?.cancel()
-        controlConnection = nil
-        decoder.reset()
-        Task { await self.cleanupAdbForward() }
+        runToken &+= 1
+        let port = localPort
+        let serialToCleanup = serial
+        teardownRuntime()
         state = .idle
+        Task { await self.cleanupAdbForward(port: port, serial: serialToCleanup) }
     }
 
     /// Called by the SwiftUI mirror view as soon as the backing layer is live.
@@ -124,6 +196,35 @@ final class ScrcpySession: ObservableObject {
         send(control: data)
     }
 
+    func sendKeyEvent(action: ControlMessage.KeyAction, keycode: Int32, metaState: Int32) {
+        guard case .connected = state else { return }
+        let data = ControlMessage.injectKeycode(
+            action: action,
+            keycode: keycode,
+            metaState: metaState
+        )
+        send(control: data)
+    }
+
+    func pasteClipboardText(_ text: String) {
+        guard case .connected = state else { return }
+        clipboardSequence &+= 1
+        appendLog("[control] set clipboard + paste · \(text.utf8.count) bytes")
+
+        if let data = ControlMessage.setClipboard(
+            sequence: clipboardSequence,
+            text: text,
+            paste: true
+        ) {
+            send(control: data)
+            return
+        }
+
+        appendLog("[control] clipboard fallback to text injection")
+        guard let data = ControlMessage.injectText(text) else { return }
+        send(control: data)
+    }
+
     private func send(control data: Data) {
         guard let conn = controlConnection else { return }
         conn.send(content: data, completion: .contentProcessed { error in
@@ -135,27 +236,38 @@ final class ScrcpySession: ObservableObject {
 
     // MARK: - Stages
 
-    private func run() async {
+    private func run(token: UInt64) async {
         do {
+            try Task.checkCancellation()
             try await pushServerJar()
+            try ensureCurrentRun(token)
             try await setupForward()
-            try await launchServer()
+            try ensureCurrentRun(token)
+            try await launchServer(token: token)
+            try ensureCurrentRun(token)
             // The server needs time to set up its LocalServerSocket after
             // app_process starts. adb-forward will happily accept our connect
             // before the tunnel can really reach the device, then drop us,
             // so we retry the whole video+handshake dance on failure.
-            let meta = try await openSocketsAndHandshakeWithRetry()
+            let meta = try await openSocketsAndHandshakeWithRetry(token: token)
+            try ensureCurrentRun(token)
             appendLog("[session] connected: \(meta.deviceName) · \(meta.width)x\(meta.height) · codec=\(meta.videoCodec?.label ?? String(format: "0x%08x", meta.rawCodecId))")
             state = .connected(meta)
-            startVideoPump()
+            if options.wantsVideo {
+                startVideoPump(token: token)
+            }
+            if options.wantsAudio {
+                try startAudioPumpIfNeeded(token: token)
+            }
         } catch {
+            guard token == runToken else { return }
             let msg = (error as? LocalizedError)?.errorDescription ?? "\(error)"
             appendLog("[session] FAILED: \(msg)")
+            let port = localPort
+            let serialToCleanup = serial
+            teardownRuntime()
             state = .failed(msg)
-            await cleanupAdbForward()
-            serverProcess?.terminate()
-            videoConnection?.cancel()
-            controlConnection?.cancel()
+            await cleanupAdbForward(port: port, serial: serialToCleanup)
         }
     }
 
@@ -180,14 +292,17 @@ final class ScrcpySession: ObservableObject {
         ], serial: serial)
     }
 
-    private func launchServer() async throws {
+    private func launchServer(token: UInt64) async throws {
         state = .startingServer
 
         // tunnel_forward=true: server acts as a server inside the adb tunnel;
-        //   we connect out to localhost:<localPort> for each channel.
-        // audio=false, control=true: minimal MVP (no audio yet, input later).
+        //   we connect out to localhost:<localPort> for each enabled channel.
         // cleanup=false: server shouldn't auto-run cleanup hooks that expect
         //   scrcpy-cli behavior.
+        let audioEnabled = options.wantsAudio
+        let videoEnabled = options.wantsVideo
+        let controlEnabled = !options.audioOnly
+
         let serverArgs = [
             "shell",
             "CLASSPATH=/data/local/tmp/scrcpy-server.jar",
@@ -196,8 +311,10 @@ final class ScrcpySession: ObservableObject {
             "scid=\(String(format: "%08x", scid))",
             "log_level=info",
             "tunnel_forward=true",
-            "audio=false",
-            "control=true",
+            "video=\(videoEnabled)",
+            "audio=\(audioEnabled)",
+            "audio_codec=raw",
+            "control=\(controlEnabled)",
             "cleanup=false",
         ]
         appendLog("[adb] shell app_process ... (scid=\(String(format: "%08x", scid)))")
@@ -205,13 +322,22 @@ final class ScrcpySession: ObservableObject {
             serverArgs,
             serial: serial,
             onStdout: { [weak self] s in
-                Task { @MainActor in self?.appendLog("[server] \(s.trimmingCharacters(in: .newlines))") }
+                Task { @MainActor in
+                    guard let self, token == self.runToken else { return }
+                    self.appendLog("[server] \(s.trimmingCharacters(in: .newlines))")
+                }
             },
             onStderr: { [weak self] s in
-                Task { @MainActor in self?.appendLog("[server] \(s.trimmingCharacters(in: .newlines))") }
+                Task { @MainActor in
+                    guard let self, token == self.runToken else { return }
+                    self.appendLog("[server] \(s.trimmingCharacters(in: .newlines))")
+                }
             },
             onExit: { [weak self] code in
-                Task { @MainActor in self?.appendLog("[server] exited code=\(code)") }
+                Task { @MainActor in
+                    guard let self, token == self.runToken else { return }
+                    self.appendLog("[server] exited code=\(code)")
+                }
             }
         )
 
@@ -220,10 +346,11 @@ final class ScrcpySession: ObservableObject {
         // sleeping a fixed duration here.
     }
 
-    private func openSocketsAndHandshakeWithRetry() async throws -> ScrcpyDeviceMeta {
+    private func openSocketsAndHandshakeWithRetry(token: UInt64) async throws -> ScrcpyDeviceMeta {
         state = .handshaking
         var lastError: Error?
         for attempt in 1...40 {
+            try ensureCurrentRun(token)
             do {
                 return try await openSocketsAndHandshake()
             } catch {
@@ -232,11 +359,13 @@ final class ScrcpySession: ObservableObject {
                 // opened, wait, and try again until ~8s have passed.
                 videoConnection?.cancel()
                 videoConnection = nil
+                audioConnection?.cancel()
+                audioConnection = nil
                 controlConnection?.cancel()
                 controlConnection = nil
                 receivedBuffer = Data()
                 if attempt == 40 { break }
-                try? await Task.sleep(nanoseconds: 200_000_000)
+                try await Task.sleep(nanoseconds: 200_000_000)
             }
         }
         throw lastError ?? SessionError.connectFailed
@@ -245,6 +374,29 @@ final class ScrcpySession: ObservableObject {
     private func openSocketsAndHandshake() async throws -> ScrcpyDeviceMeta {
         let host = NWEndpoint.Host("127.0.0.1")
         let port = NWEndpoint.Port(rawValue: localPort)!
+
+        guard options.wantsVideo else {
+            if options.wantsAudio {
+                let audio = try await openConnection(host: host, port: port)
+                self.audioConnection = audio
+                let codecHeader = try await receiveExactly(from: audio, count: 4)
+                let codecId = codecHeader.readBigEndian(UInt32.self, at: 0)
+                appendLog("[audio] codec=\(String(format: "0x%08x", codecId))")
+            }
+
+            if !options.audioOnly {
+                let control = try await openConnection(host: host, port: port)
+                self.controlConnection = control
+            }
+
+            return ScrcpyDeviceMeta(
+                deviceName: serial,
+                videoCodec: nil,
+                rawCodecId: 0,
+                width: 1,
+                height: 1
+            )
+        }
 
         // 1. Open video socket.
         let video = try await openConnection(host: host, port: port)
@@ -258,12 +410,24 @@ final class ScrcpySession: ObservableObject {
             appendLog("[warn] unexpected dummy byte: 0x\(String(format: "%02x", dummy[0]))")
         }
 
-        // 3. Now that the tunnel is truly established, open the control socket
-        //    so the server will proceed to send device metadata on video.
-        let control = try await openConnection(host: host, port: port)
-        self.controlConnection = control
+        // 3. Open the optional audio socket before control so the server can
+        //    start all enabled streams through the same adb tunnel.
+        if options.wantsAudio {
+            let audio = try await openConnection(host: host, port: port)
+            self.audioConnection = audio
+            let codecHeader = try await receiveExactly(from: audio, count: 4)
+            let codecId = codecHeader.readBigEndian(UInt32.self, at: 0)
+            appendLog("[audio] codec=\(String(format: "0x%08x", codecId))")
+        }
 
-        // 4. Read the 64-byte device name + 12-byte codec header on video.
+        // 4. Now that the tunnel is truly established, open the control socket
+        //    so the server will proceed to send device metadata on video.
+        if !options.audioOnly {
+            let control = try await openConnection(host: host, port: port)
+            self.controlConnection = control
+        }
+
+        // 5. Read the 64-byte device name + 12-byte codec header on video.
         let nameAndCodec = try await receiveExactly(
             from: video,
             count: ScrcpyProtocol.deviceNameFieldLength + 12
@@ -340,25 +504,37 @@ final class ScrcpySession: ObservableObject {
         }
     }
 
-    private func startVideoPump() {
+    private func startVideoPump(token: UInt64) {
         guard let conn = videoConnection else { return }
         videoPumpTask = Task { [weak self, decoder] in
-            await self?.pumpVideoFrames(conn: conn, decoder: decoder)
+            await self?.pumpVideoFrames(conn: conn, decoder: decoder, token: token)
         }
     }
 
-    private func pumpVideoFrames(conn: NWConnection, decoder: H264Decoder) async {
+    private func startAudioPumpIfNeeded(token: UInt64) throws {
+        guard let conn = audioConnection else { return }
+        try audioPlayer.start()
+        audioPumpTask = Task { [weak self] in
+            await self?.pumpAudioFrames(conn: conn, token: token)
+        }
+    }
+
+    private func pumpVideoFrames(conn: NWConnection, decoder: H264Decoder, token: UInt64) async {
         var frameCount = 0
         while !Task.isCancelled {
             do {
                 let header = try await receiveExactly(from: conn, count: ScrcpyProtocol.frameHeaderLength)
                 guard let info = ScrcpyVideoPacketHeader.parse(header) else {
-                    await MainActor.run { self.appendLog("[video] bad header") }
+                    await MainActor.run {
+                        guard token == self.runToken else { return }
+                        self.appendLog("[video] bad header")
+                    }
                     return
                 }
                 let payload = try await receiveExactly(from: conn, count: info.size)
                 if info.isConfig {
                     await MainActor.run {
+                        guard token == self.runToken else { return }
                         self.appendLog("[video] config packet · \(payload.count) bytes")
                     }
                     decoder.ingestConfig(payload)
@@ -368,6 +544,7 @@ final class ScrcpySession: ObservableObject {
                     if frameCount == 1 || frameCount % 120 == 0 {
                         let snapshot = frameCount
                         await MainActor.run {
+                            guard token == self.runToken else { return }
                             self.appendLog("[video] \(snapshot) frames decoded")
                         }
                     }
@@ -375,15 +552,75 @@ final class ScrcpySession: ObservableObject {
             } catch {
                 if Task.isCancelled { return }
                 await MainActor.run {
+                    guard token == self.runToken else { return }
                     self.appendLog("[video] stream ended: \(error)")
+                    let msg = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+                    let port = self.localPort
+                    let serialToCleanup = self.serial
+                    self.runToken &+= 1
+                    self.teardownRuntime()
+                    self.state = .failed("Video stream ended: \(msg)")
+                    Task { await self.cleanupAdbForward(port: port, serial: serialToCleanup) }
                 }
                 return
             }
         }
     }
 
-    private func cleanupAdbForward() async {
-        _ = try? await adb.run(["forward", "--remove", "tcp:\(localPort)"], serial: serial)
+    private func pumpAudioFrames(conn: NWConnection, token: UInt64) async {
+        while !Task.isCancelled {
+            do {
+                let header = try await receiveExactly(from: conn, count: ScrcpyProtocol.frameHeaderLength)
+                guard let info = ScrcpyVideoPacketHeader.parse(header) else {
+                    await MainActor.run {
+                        guard token == self.runToken else { return }
+                        self.appendLog("[audio] bad header")
+                    }
+                    return
+                }
+                let payload = try await receiveExactly(from: conn, count: info.size)
+                if info.isConfig {
+                    continue
+                }
+                audioPlayer.enqueuePCM(payload)
+            } catch {
+                if Task.isCancelled { return }
+                await MainActor.run {
+                    guard token == self.runToken else { return }
+                    self.appendLog("[audio] stream ended: \(error)")
+                }
+                return
+            }
+        }
+    }
+
+    private func teardownRuntime() {
+        videoPumpTask?.cancel()
+        videoPumpTask = nil
+        audioPumpTask?.cancel()
+        audioPumpTask = nil
+        serverProcess?.terminate()
+        serverProcess = nil
+        videoConnection?.cancel()
+        videoConnection = nil
+        audioConnection?.cancel()
+        audioConnection = nil
+        controlConnection?.cancel()
+        controlConnection = nil
+        receivedBuffer = Data()
+        decoder.reset()
+        audioPlayer.stop()
+    }
+
+    private func cleanupAdbForward(port: UInt16, serial: String) async {
+        guard port != 0, !serial.isEmpty else { return }
+        _ = try? await adb.run(["forward", "--remove", "tcp:\(port)"], serial: serial)
+    }
+
+    private func ensureCurrentRun(_ token: UInt64) throws {
+        if Task.isCancelled || token != runToken {
+            throw CancellationError()
+        }
     }
 
     private func appendLog(_ line: String) {

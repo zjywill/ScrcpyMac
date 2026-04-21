@@ -80,9 +80,9 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 4) {
             Toggle("Stay awake", isOn: $stayAwake)
             Toggle("Turn screen off", isOn: $turnScreenOff)
-            Toggle("Audio only", isOn: $audioOnly)
+            Toggle("Audio only (disable video)", isOn: $audioOnly)
                 .disabled(videoOnly)
-            Toggle("Video only", isOn: $videoOnly)
+            Toggle("Video only (disable audio)", isOn: $videoOnly)
                 .disabled(audioOnly)
         }
         .toggleStyle(.checkbox)
@@ -92,6 +92,14 @@ struct ContentView: View {
     private var actionBar: some View {
         HStack {
             if isSessionActive {
+                Button {
+                    pasteClipboard()
+                } label: {
+                    Label("Paste Clipboard", systemImage: "doc.on.clipboard")
+                        .frame(maxWidth: .infinity)
+                }
+                .disabled(!isConnected)
+
                 Button(role: .destructive) {
                     session.stop()
                 } label: {
@@ -101,7 +109,10 @@ struct ContentView: View {
             } else {
                 Button {
                     if let serial = selectedSerial {
-                        session.start(serial: serial)
+                        session.start(
+                            serial: serial,
+                            options: SessionOptions(audioOnly: audioOnly, videoOnly: videoOnly)
+                        )
                     }
                 } label: {
                     Label("Connect", systemImage: "play.fill")
@@ -126,7 +137,8 @@ struct ContentView: View {
             // its layer as soon as the session is connected.
             MirrorView(
                 onLayerReady: { layer in session.attach(displayLayer: layer) },
-                onPointerEvent: { event in handlePointerEvent(event) }
+                onPointerEvent: { event in handlePointerEvent(event) },
+                onKeyEvent: { event in handleKeyEvent(event) }
             )
 
             // Overlay status + log until the first frame lands. We hide the
@@ -175,9 +187,21 @@ struct ContentView: View {
         }
     }
 
+    private func handleKeyEvent(_ keyEvent: SampleBufferHostView.KeyEvent) {
+        guard let mapped = AndroidKeycode.map(event: keyEvent.event) else { return }
+        let action: ControlMessage.KeyAction = keyEvent.kind == .down ? .down : .up
+        session.sendKeyEvent(action: action, keycode: mapped.keycode, metaState: mapped.metaState)
+    }
+
+    private func pasteClipboard() {
+        let pasteboard = NSPasteboard.general
+        guard let text = pasteboard.string(forType: .string), !text.isEmpty else { return }
+        session.pasteClipboardText(text)
+    }
+
     private var stateLabel: String {
         switch session.state {
-        case .idle: return "idle — select device and click Connect"
+        case .idle: return "idle — select device and click Connect (default: video + audio)"
         case .pushing: return "pushing scrcpy-server.jar…"
         case .forwarding: return "setting up adb forward…"
         case .startingServer: return "starting server on device…"

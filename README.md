@@ -42,7 +42,7 @@ Key files:
 - `MirrorView.swift` — `NSViewRepresentable` hosting
   `AVSampleBufferDisplayLayer`; also the capture surface for mouse+scroll.
 - `ControlMessage.swift` — encoder for scrcpy's client→device protocol
-  (currently touch + scroll; keyboard is TODO).
+  (touch, scroll, keyboard, and text injection).
 - `AdbBridge.swift` — thin wrapper over the `adb` CLI.
 
 ## Build
@@ -69,8 +69,8 @@ open ScrcpyMac.xcodeproj             # ⌘R to run, or use xcodebuild
 - [x] B3 — H.264 decode + render via `AVSampleBufferDisplayLayer` inside
       SwiftUI (single window, single Dock icon)
 - [x] B4 — mouse + scroll events encoded as scrcpy control messages
-- [ ] B5 — keyboard input
-- [ ] B6 — stop / reconnect hardening, audio (optional), clipboard (optional)
+- [x] B5 — keyboard input
+- [x] B6 — stop / reconnect hardening, clipboard paste, and minimal raw PCM audio playback
 - [ ] B7 — bundle `adb` + `scrcpy-server.jar` into the `.app` for sharing
 
 ## License notes
