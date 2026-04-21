@@ -1,0 +1,35 @@
+name: ScrcpyMac
+options:
+  bundleIdPrefix: com.zjywill
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGNING_REQUIRED: NO
+    ENABLE_HARDENED_RUNTIME: NO
+    DEAD_CODE_STRIPPING: YES
+
+targets:
+  ScrcpyMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: ScrcpyMac
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.zjywill.scrcpyMac
+        PRODUCT_NAME: ScrcpyMac
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Reuses github.com/Genymobile/scrcpy server protocol"
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        INFOPLIST_KEY_NSMainStoryboardFile: ""
+        ENABLE_APP_SANDBOX: NO

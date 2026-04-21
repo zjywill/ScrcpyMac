@@ -1,0 +1,22 @@
+# Xcode
+DerivedData/
+build/
+*.xcodeproj
+*.xcworkspace/xcuserdata/
+xcuserdata/
+
+# macOS
+.DS_Store
+
+# Bundled binaries (produced by Scripts/bundle-scrcpy.sh)
+ScrcpyMac/Resources/bin/
+ScrcpyMac/Resources/lib/
+ScrcpyMac/Resources/share/
+
+# Reference clone of upstream scrcpy (protocol reference, not a dependency)
+reference/
+
+# Swift Package
+.build/
+.swiftpm/
+Package.resolved
