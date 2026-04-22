@@ -117,7 +117,6 @@ final class ScrcpySession: ObservableObject {
     private var serial: String = ""
     private var scid: UInt32 = 0
     private var runToken: UInt64 = 0
-    private var clipboardSequence: UInt64 = 0
     private var options = SessionOptions()
 
     init(toolchain: Toolchain) {
@@ -208,20 +207,11 @@ final class ScrcpySession: ObservableObject {
 
     func pasteClipboardText(_ text: String) {
         guard case .connected = state else { return }
-        clipboardSequence &+= 1
+        guard !text.isEmpty else { return }
         appendLog("[control] set clipboard + paste · \(text.utf8.count) bytes")
-
-        if let data = ControlMessage.setClipboard(
-            sequence: clipboardSequence,
-            text: text,
-            paste: true
-        ) {
-            send(control: data)
-            return
-        }
-
-        appendLog("[control] clipboard fallback to text injection")
-        guard let data = ControlMessage.injectText(text) else { return }
+        // sequence=0 (SEQUENCE_INVALID): we do not read the control socket,
+        // so we don't want the server to send back an AckClipboard.
+        let data = ControlMessage.setClipboard(sequence: 0, text: text, paste: true)
         send(control: data)
     }
 
@@ -315,6 +305,10 @@ final class ScrcpySession: ObservableObject {
             "audio=\(audioEnabled)",
             "audio_codec=raw",
             "control=\(controlEnabled)",
+            // We never read the control socket back-channel, so don't let the
+            // server push device-clipboard changes to us — they would just
+            // fill the socket buffer and eventually block the sender thread.
+            "clipboard_autosync=false",
             "cleanup=false",
         ]
         appendLog("[adb] shell app_process ... (scid=\(String(format: "%08x", scid)))")
@@ -375,20 +369,46 @@ final class ScrcpySession: ObservableObject {
         let host = NWEndpoint.Host("127.0.0.1")
         let port = NWEndpoint.Port(rawValue: localPort)!
 
-        guard options.wantsVideo else {
-            if options.wantsAudio {
-                let audio = try await openConnection(host: host, port: port)
-                self.audioConnection = audio
-                let codecHeader = try await receiveExactly(from: audio, count: 4)
-                let codecId = codecHeader.readBigEndian(UInt32.self, at: 0)
-                appendLog("[audio] codec=\(String(format: "0x%08x", codecId))")
-            }
+        // Server accepts sockets in order: video, audio, control — and writes
+        // the 1-byte dummy only on the FIRST accepted socket. Device metadata
+        // and codec headers are written by async processors that do not start
+        // until every enabled socket has been accepted. So we must open all
+        // sockets before attempting to read any payload; otherwise we deadlock
+        // against localServerSocket.accept() on the server side.
 
-            if !options.audioOnly {
-                let control = try await openConnection(host: host, port: port)
-                self.controlConnection = control
-            }
+        var video: NWConnection?
+        if options.wantsVideo {
+            video = try await openConnection(host: host, port: port)
+            self.videoConnection = video
+        }
 
+        var audio: NWConnection?
+        if options.wantsAudio {
+            audio = try await openConnection(host: host, port: port)
+            self.audioConnection = audio
+        }
+
+        if !options.audioOnly {
+            let control = try await openConnection(host: host, port: port)
+            self.controlConnection = control
+        }
+
+        // Read the 1-byte handshake from the first opened socket. A failure
+        // here (ENODATA / reset) means adb's tunnel hasn't reached the server
+        // yet — our signal to retry the whole thing.
+        let firstSocket = video ?? audio ?? controlConnection!
+        let dummy = try await receiveExactly(from: firstSocket, count: 1)
+        if dummy[0] != 0 {
+            appendLog("[warn] unexpected dummy byte: 0x\(String(format: "%02x", dummy[0]))")
+        }
+
+        if let audio {
+            let codecHeader = try await receiveExactly(from: audio, count: 4)
+            let codecId = codecHeader.readBigEndian(UInt32.self, at: 0)
+            appendLog("[audio] codec=\(String(format: "0x%08x", codecId))")
+        }
+
+        guard let video else {
             return ScrcpyDeviceMeta(
                 deviceName: serial,
                 videoCodec: nil,
@@ -398,36 +418,6 @@ final class ScrcpySession: ObservableObject {
             )
         }
 
-        // 1. Open video socket.
-        let video = try await openConnection(host: host, port: port)
-        self.videoConnection = video
-
-        // 2. Read the 1-byte handshake. If adb's tunnel hasn't reached the
-        //    server yet, this fails with ENODATA / connection reset, which is
-        //    our signal to retry the whole thing.
-        let dummy = try await receiveExactly(from: video, count: 1)
-        if dummy[0] != 0 {
-            appendLog("[warn] unexpected dummy byte: 0x\(String(format: "%02x", dummy[0]))")
-        }
-
-        // 3. Open the optional audio socket before control so the server can
-        //    start all enabled streams through the same adb tunnel.
-        if options.wantsAudio {
-            let audio = try await openConnection(host: host, port: port)
-            self.audioConnection = audio
-            let codecHeader = try await receiveExactly(from: audio, count: 4)
-            let codecId = codecHeader.readBigEndian(UInt32.self, at: 0)
-            appendLog("[audio] codec=\(String(format: "0x%08x", codecId))")
-        }
-
-        // 4. Now that the tunnel is truly established, open the control socket
-        //    so the server will proceed to send device metadata on video.
-        if !options.audioOnly {
-            let control = try await openConnection(host: host, port: port)
-            self.controlConnection = control
-        }
-
-        // 5. Read the 64-byte device name + 12-byte codec header on video.
         let nameAndCodec = try await receiveExactly(
             from: video,
             count: ScrcpyProtocol.deviceNameFieldLength + 12

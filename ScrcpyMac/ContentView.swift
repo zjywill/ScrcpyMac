@@ -188,6 +188,14 @@ struct ContentView: View {
     }
 
     private func handleKeyEvent(_ keyEvent: SampleBufferHostView.KeyEvent) {
+        // Cmd+V on Mac should paste the Mac clipboard into the device. Do this
+        // on keyDown only so the keyUp doesn't trigger a second paste attempt.
+        if AndroidKeycode.isMacPasteShortcut(keyEvent.event) {
+            if keyEvent.kind == .down {
+                pasteClipboard()
+            }
+            return
+        }
         guard let mapped = AndroidKeycode.map(event: keyEvent.event) else { return }
         let action: ControlMessage.KeyAction = keyEvent.kind == .down ? .down : .up
         session.sendKeyEvent(action: action, keycode: mapped.keycode, metaState: mapped.metaState)

@@ -5,6 +5,9 @@ build/
 *.xcworkspace/xcuserdata/
 xcuserdata/
 
+# Release artifacts (produced by scripts/package-dmg.sh)
+dist/
+
 # macOS
 .DS_Store
 

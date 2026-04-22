@@ -8,7 +8,6 @@ import AppKit
 enum ControlMessage {
     // Message type ids (must match ControlMessage.java).
     static let typeInjectKeycode: UInt8     = 0
-    static let typeInjectText: UInt8        = 1
     static let typeInjectTouchEvent: UInt8  = 2
     static let typeInjectScrollEvent: UInt8 = 3
     static let typeBackOrScreenOn: UInt8    = 4
@@ -51,20 +50,9 @@ enum ControlMessage {
         return d
     }
 
-    /// Build an INJECT_TEXT packet using a UTF-8 payload with a u32 byte length.
-    static func injectText(_ text: String) -> Data? {
-        guard let utf8 = text.data(using: .utf8) else { return nil }
-        var d = Data()
-        d.reserveCapacity(5 + utf8.count)
-        d.appendBE(typeInjectText)
-        d.appendBE(UInt32(utf8.count))
-        d.append(utf8)
-        return d
-    }
-
     /// Build a SET_CLIPBOARD packet and optionally request immediate paste.
-    static func setClipboard(sequence: UInt64, text: String, paste: Bool) -> Data? {
-        guard let utf8 = text.data(using: .utf8) else { return nil }
+    static func setClipboard(sequence: UInt64, text: String, paste: Bool) -> Data {
+        let utf8 = Data(text.utf8)
         var d = Data()
         d.reserveCapacity(14 + utf8.count)
         d.appendBE(typeSetClipboard)
@@ -149,24 +137,23 @@ enum AndroidKeycode {
     static let metaAltOn: Int32 = 0x00000002
     static let metaCtrlOn: Int32 = 0x00001000
     static let metaMetaOn: Int32 = 0x00010000
-    static let keycodeV: Int32 = 50
 
     static func map(event: NSEvent) -> (keycode: Int32, metaState: Int32)? {
-        if let override = commandShortcutOverride(for: event) {
-            return override
-        }
         let keycode = mapSpecialKey(event) ?? mapCharacterKey(event)
         guard let keycode else { return nil }
         return (keycode, metaState(for: event.modifierFlags))
     }
 
-    private static func commandShortcutOverride(for event: NSEvent) -> (keycode: Int32, metaState: Int32)? {
+    /// True when this event is the Cmd+V paste shortcut. The caller should
+    /// intercept it and push the Mac clipboard to the device via
+    /// SET_CLIPBOARD(paste=true) — otherwise the device would only re-paste
+    /// whatever is already in the Android clipboard.
+    static func isMacPasteShortcut(_ event: NSEvent) -> Bool {
         guard event.modifierFlags.contains(.command),
-              let chars = event.charactersIgnoringModifiers?.uppercased(),
-              chars == "V" else {
-            return nil
+              let chars = event.charactersIgnoringModifiers?.lowercased() else {
+            return false
         }
-        return (keycodeV, metaCtrlOn)
+        return chars == "v"
     }
 
     private static func mapSpecialKey(_ event: NSEvent) -> Int32? {
