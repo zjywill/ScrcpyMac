@@ -5,6 +5,8 @@ import AVFoundation
 struct SessionOptions {
     var audioOnly: Bool = false
     var videoOnly: Bool = false
+    var stayAwake: Bool = false
+    var turnScreenOff: Bool = false
 
     var wantsVideo: Bool { !audioOnly }
     var wantsAudio: Bool { !videoOnly }
@@ -243,6 +245,10 @@ final class ScrcpySession: ObservableObject {
             try ensureCurrentRun(token)
             appendLog("[session] connected: \(meta.deviceName) · \(meta.width)x\(meta.height) · codec=\(meta.videoCodec?.label ?? String(format: "0x%08x", meta.rawCodecId))")
             state = .connected(meta)
+            if options.turnScreenOff && !options.audioOnly {
+                appendLog("[control] turn device screen off")
+                send(control: ControlMessage.setDisplayPower(on: false))
+            }
             if options.wantsVideo {
                 startVideoPump(token: token)
             }
@@ -310,7 +316,7 @@ final class ScrcpySession: ObservableObject {
             // fill the socket buffer and eventually block the sender thread.
             "clipboard_autosync=false",
             "cleanup=false",
-        ]
+        ] + (options.stayAwake ? ["stay_awake=true"] : [])
         appendLog("[adb] shell app_process ... (scid=\(String(format: "%08x", scid)))")
         serverProcess = try adb.spawn(
             serverArgs,

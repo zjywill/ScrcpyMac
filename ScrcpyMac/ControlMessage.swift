@@ -12,6 +12,7 @@ enum ControlMessage {
     static let typeInjectScrollEvent: UInt8 = 3
     static let typeBackOrScreenOn: UInt8    = 4
     static let typeSetClipboard: UInt8      = 9
+    static let typeSetDisplayPower: UInt8   = 10
 
     // Android KeyEvent actions scrcpy accepts for keyboard injection.
     enum KeyAction: UInt8 {
@@ -60,6 +61,16 @@ enum ControlMessage {
         d.appendBE(paste ? UInt8(1) : UInt8(0))
         d.appendBE(UInt32(utf8.count))
         d.append(utf8)
+        return d
+    }
+
+    /// Build a SET_DISPLAY_POWER packet. `on=false` turns the device screen
+    /// off while mirroring continues (scrcpy's `--turn-screen-off`).
+    static func setDisplayPower(on: Bool) -> Data {
+        var d = Data()
+        d.reserveCapacity(2)
+        d.appendBE(typeSetDisplayPower)
+        d.appendBE(on ? UInt8(1) : UInt8(0))
         return d
     }
 

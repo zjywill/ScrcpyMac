@@ -80,6 +80,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 4) {
             Toggle("Stay awake", isOn: $stayAwake)
             Toggle("Turn screen off", isOn: $turnScreenOff)
+                .disabled(audioOnly)
             Toggle("Audio only (disable video)", isOn: $audioOnly)
                 .disabled(videoOnly)
             Toggle("Video only (disable audio)", isOn: $videoOnly)
@@ -111,7 +112,12 @@ struct ContentView: View {
                     if let serial = selectedSerial {
                         session.start(
                             serial: serial,
-                            options: SessionOptions(audioOnly: audioOnly, videoOnly: videoOnly)
+                            options: SessionOptions(
+                                audioOnly: audioOnly,
+                                videoOnly: videoOnly,
+                                stayAwake: stayAwake,
+                                turnScreenOff: turnScreenOff
+                            )
                         )
                     }
                 } label: {
