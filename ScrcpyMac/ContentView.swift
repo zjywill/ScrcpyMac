@@ -1,6 +1,74 @@
 import SwiftUI
 import AppKit
 
+// MARK: - Motion tokens
+
+private extension Animation {
+    /// Strong ease-out — starts fast so the UI feels like it responds instantly.
+    static let uiEaseOut = Animation.timingCurve(0.23, 1, 0.32, 1, duration: 0.22)
+    /// Button press feedback.
+    static let press = Animation.timingCurve(0.23, 1, 0.32, 1, duration: 0.16)
+}
+
+// MARK: - Button styles
+
+private struct PrimaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    var tint: Color = .accentColor
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(tint)
+                    .brightness(configuration.isPressed ? -0.08 : 0)
+            )
+            .opacity(isEnabled ? 1 : 0.4)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.press, value: configuration.isPressed)
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct SecondaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .medium))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(configuration.isPressed ? 0.12 : 0.06))
+            )
+            .opacity(isEnabled ? 1 : 0.4)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.press, value: configuration.isPressed)
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct IconButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(width: 28, height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(Color.primary.opacity(configuration.isPressed ? 0.12 : 0.06))
+            )
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .animation(.press, value: configuration.isPressed)
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+}
+
+// MARK: - ContentView
+
 struct ContentView: View {
     @StateObject private var deviceManager: DeviceManager
     @StateObject private var session: ScrcpySession
@@ -11,6 +79,9 @@ struct ContentView: View {
     @State private var turnScreenOff: Bool = false
     @State private var audioOnly: Bool = false
     @State private var videoOnly: Bool = false
+    @State private var showLog: Bool = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init() {
         let tc = Toolchain.detect()
@@ -21,15 +92,8 @@ struct ContentView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            VStack(alignment: .leading, spacing: 10) {
-                header
-                deviceRow
-                optionsCompact
-                Spacer(minLength: 0)
-                actionBar
-            }
-            .padding(14)
-            .frame(width: 260)
+            sidebar
+                .frame(width: 260)
 
             mirrorPane
                 .frame(width: 360, height: 700)
@@ -38,36 +102,97 @@ struct ContentView: View {
         .task { await deviceManager.refresh() }
     }
 
+    // MARK: Sidebar
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            header
+            deviceSection
+            optionsSection
+            Spacer(minLength: 0)
+            statusChip
+            actionBar
+        }
+        .padding(16)
+    }
+
     private var header: some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(spacing: 10) {
             Image(systemName: "iphone.gen3.radiowaves.left.and.right")
+                .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.tint)
-            Text("ScrcpyMac").font(.headline)
+                .frame(width: 32, height: 32)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.12))
+                )
+            VStack(alignment: .leading, spacing: 1) {
+                Text("ScrcpyMac")
+                    .font(.system(size: 14, weight: .semibold))
+                Text("Android mirroring")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
             Spacer()
         }
     }
 
-    private var deviceRow: some View {
-        HStack(spacing: 6) {
-            Picker("", selection: $selectedSerial) {
-                Text("— device —").tag(String?.none)
-                ForEach(deviceManager.devices) { d in
-                    Text("\(d.displayName)").tag(String?.some(d.serial))
-                }
-            }
-            .labelsHidden()
-            .frame(maxWidth: .infinity)
+    private var deviceSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionLabel("Device")
 
-            Button {
-                Task { await deviceManager.refresh() }
-            } label: {
-                if deviceManager.isRefreshing {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Image(systemName: "arrow.clockwise")
+            HStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(deviceDotColor)
+                        .frame(width: 7, height: 7)
+                        .animation(.uiEaseOut, value: deviceDotColor)
+
+                    Picker("", selection: $selectedSerial) {
+                        if deviceManager.devices.isEmpty {
+                            Text("No devices").tag(String?.none)
+                        } else {
+                            Text("Choose a device").tag(String?.none)
+                        }
+                        ForEach(deviceManager.devices) { d in
+                            Text(d.displayName).tag(String?.some(d.serial))
+                        }
+                    }
+                    .labelsHidden()
+                    .disabled(isSessionActive)
                 }
+                .padding(.leading, 10)
+                .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(Color.primary.opacity(0.05))
+                )
+
+                Button {
+                    Task { await deviceManager.refresh() }
+                } label: {
+                    ZStack {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 12, weight: .medium))
+                            .opacity(deviceManager.isRefreshing ? 0 : 1)
+                        ProgressView()
+                            .controlSize(.small)
+                            .opacity(deviceManager.isRefreshing ? 1 : 0)
+                    }
+                    .animation(.uiEaseOut, value: deviceManager.isRefreshing)
+                }
+                .buttonStyle(IconButtonStyle())
+                .disabled(deviceManager.isRefreshing)
+                .help("Refresh device list")
             }
-            .disabled(deviceManager.isRefreshing)
+
+            if deviceManager.devices.isEmpty && !deviceManager.isRefreshing {
+                Text("Connect a device over USB and enable USB debugging.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
+            }
         }
         .onChange(of: deviceManager.devices) { newValue in
             if selectedSerial == nil, let first = newValue.first(where: { $0.state == "device" }) {
@@ -76,37 +201,117 @@ struct ContentView: View {
         }
     }
 
-    private var optionsCompact: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Toggle("Stay awake", isOn: $stayAwake)
-            Toggle("Turn screen off", isOn: $turnScreenOff)
-                .disabled(audioOnly)
-            Toggle("Audio only (disable video)", isOn: $audioOnly)
-                .disabled(videoOnly)
-            Toggle("Video only (disable audio)", isOn: $videoOnly)
-                .disabled(audioOnly)
+    private var deviceDotColor: Color {
+        guard let serial = selectedSerial,
+              let device = deviceManager.devices.first(where: { $0.serial == serial }) else {
+            return Color.secondary.opacity(0.4)
         }
-        .toggleStyle(.checkbox)
-        .controlSize(.small)
+        switch device.state {
+        case "device": return .green
+        case "unauthorized": return .orange
+        default: return .red
+        }
+    }
+
+    private var optionsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionLabel("Options")
+
+            VStack(spacing: 0) {
+                optionRow("Stay awake", icon: "sun.max", isOn: $stayAwake)
+                optionDivider
+                optionRow("Turn screen off", icon: "moon", isOn: $turnScreenOff)
+                    .disabled(audioOnly)
+                optionDivider
+                optionRow("Audio only", icon: "speaker.wave.2", isOn: $audioOnly)
+                    .disabled(videoOnly)
+                optionDivider
+                optionRow("Video only", icon: "video", isOn: $videoOnly)
+                    .disabled(audioOnly)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(Color.primary.opacity(0.05))
+            )
+        }
+    }
+
+    private var optionDivider: some View {
+        Divider().opacity(0.4).padding(.leading, 34)
+    }
+
+    private func optionRow(_ title: String, icon: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(title)
+                .font(.system(size: 12))
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .contentShape(Rectangle())
+    }
+
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .kerning(0.6)
+    }
+
+    private var statusChip: some View {
+        Group {
+            if case .connected(let meta) = session.state {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 7, height: 7)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(meta.deviceName)
+                            .font(.system(size: 12, weight: .medium))
+                            .lineLimit(1)
+                        Text("\(String(meta.width))×\(String(meta.height)) · \(meta.videoCodec?.label ?? "unknown codec")")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(Color.green.opacity(0.08))
+                )
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
+            }
+        }
+        .animation(.uiEaseOut, value: isConnected)
     }
 
     private var actionBar: some View {
-        HStack {
+        VStack(spacing: 8) {
             if isSessionActive {
                 Button {
                     pasteClipboard()
                 } label: {
                     Label("Paste Clipboard", systemImage: "doc.on.clipboard")
-                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(SecondaryButtonStyle())
                 .disabled(!isConnected)
 
-                Button(role: .destructive) {
+                Button {
                     session.stop()
                 } label: {
                     Label("Stop", systemImage: "stop.fill")
-                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(PrimaryButtonStyle(tint: .red))
             } else {
                 Button {
                     if let serial = selectedSerial {
@@ -122,12 +327,12 @@ struct ContentView: View {
                     }
                 } label: {
                     Label("Connect", systemImage: "play.fill")
-                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(PrimaryButtonStyle())
                 .disabled(selectedSerial == nil)
             }
         }
+        .animation(reduceMotion ? nil : .uiEaseOut, value: isSessionActive)
     }
 
     private var isSessionActive: Bool {
@@ -136,6 +341,8 @@ struct ContentView: View {
         default: return true
         }
     }
+
+    // MARK: Mirror pane
 
     private var mirrorPane: some View {
         ZStack {
@@ -147,34 +354,173 @@ struct ContentView: View {
                 onKeyEvent: { event in handleKeyEvent(event) }
             )
 
-            // Overlay status + log until the first frame lands. We hide the
-            // overlay once we're connected so the video surface takes over.
             if !isConnected {
-                ZStack {
-                    Color.black
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(stateLabel)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.9))
-                        Divider().overlay(.white.opacity(0.1))
-                        ScrollView {
-                            Text(session.log.isEmpty ? "(no activity)" : session.log)
-                                .font(.system(.caption2, design: .monospaced))
-                                .foregroundStyle(.white.opacity(0.65))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .textSelection(.enabled)
-                        }
-                    }
-                    .padding(10)
-                }
+                overlay
+                    .transition(reduceMotion ? .opacity : .opacity)
             }
         }
+        .animation(.easeOut(duration: 0.35), value: isConnected)
+    }
+
+    @ViewBuilder
+    private var overlay: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(white: 0.09), Color(white: 0.05)],
+                startPoint: .top, endPoint: .bottom
+            )
+
+            VStack(spacing: 0) {
+                Spacer()
+
+                switch session.state {
+                case .idle:
+                    idleState
+                case .failed(let message):
+                    failedState(message)
+                default:
+                    connectingState
+                }
+
+                Spacer()
+
+                logDisclosure
+            }
+            .padding(16)
+        }
+    }
+
+    private var idleState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "iphone.gen3")
+                .font(.system(size: 40, weight: .thin))
+                .foregroundStyle(.white.opacity(0.25))
+            Text("Ready to mirror")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.white.opacity(0.85))
+            Text("Select a device and press Connect")
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.45))
+        }
+        .transition(stateTransition)
+    }
+
+    private func failedState(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 32, weight: .light))
+                .foregroundStyle(.orange)
+            Text("Connection failed")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.white.opacity(0.85))
+            Text(message)
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.55))
+                .multilineTextAlignment(.center)
+                .lineLimit(4)
+                .textSelection(.enabled)
+        }
+        .padding(.horizontal, 12)
+        .transition(stateTransition)
+    }
+
+    private static let connectionSteps = [
+        "Pushing server to device",
+        "Setting up port forward",
+        "Starting server",
+        "Handshaking",
+    ]
+
+    private var currentStepIndex: Int {
+        switch session.state {
+        case .pushing: return 0
+        case .forwarding: return 1
+        case .startingServer: return 2
+        case .handshaking: return 3
+        default: return -1
+        }
+    }
+
+    private var connectingState: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(Array(Self.connectionSteps.enumerated()), id: \.offset) { index, title in
+                HStack(spacing: 10) {
+                    ZStack {
+                        if index < currentStepIndex {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.green)
+                        } else if index == currentStepIndex {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(.white)
+                        } else {
+                            Circle()
+                                .strokeBorder(.white.opacity(0.2), lineWidth: 1.5)
+                                .frame(width: 13, height: 13)
+                        }
+                    }
+                    .frame(width: 18, height: 18)
+
+                    Text(title)
+                        .font(.system(size: 12))
+                        .foregroundStyle(
+                            index <= currentStepIndex ? .white.opacity(0.85) : .white.opacity(0.35)
+                        )
+                }
+                .animation(.uiEaseOut, value: currentStepIndex)
+            }
+        }
+        .transition(stateTransition)
+    }
+
+    private var stateTransition: AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97))
+    }
+
+    private var logDisclosure: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                withAnimation(reduceMotion ? nil : .uiEaseOut) { showLog.toggle() }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .bold))
+                        .rotationEffect(.degrees(showLog ? 90 : 0))
+                    Text("Details")
+                        .font(.system(size: 10, weight: .medium))
+                }
+                .foregroundStyle(.white.opacity(0.4))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if showLog {
+                ScrollView {
+                    Text(session.log.isEmpty ? "(no activity)" : session.log)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+                .frame(height: 140)
+                .padding(8)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(.white.opacity(0.04))
+                )
+                .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var isConnected: Bool {
         if case .connected = session.state { return true }
         return false
     }
+
+    // MARK: Input forwarding
 
     private func handlePointerEvent(_ event: SampleBufferHostView.PointerEvent) {
         switch event.kind {
@@ -211,19 +557,5 @@ struct ContentView: View {
         let pasteboard = NSPasteboard.general
         guard let text = pasteboard.string(forType: .string), !text.isEmpty else { return }
         session.pasteClipboardText(text)
-    }
-
-    private var stateLabel: String {
-        switch session.state {
-        case .idle: return "idle — select device and click Connect (default: video + audio)"
-        case .pushing: return "pushing scrcpy-server.jar…"
-        case .forwarding: return "setting up adb forward…"
-        case .startingServer: return "starting server on device…"
-        case .handshaking: return "handshaking…"
-        case .connected(let meta):
-            let codec = meta.videoCodec?.label ?? String(format: "0x%08x", meta.rawCodecId)
-            return "✅ \(meta.deviceName) · \(meta.width)×\(meta.height) · \(codec)"
-        case .failed(let msg): return "❌ \(msg)"
-        }
     }
 }
