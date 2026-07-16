@@ -8,6 +8,7 @@ import AppKit
 enum ControlMessage {
     // Message type ids (must match ControlMessage.java).
     static let typeInjectKeycode: UInt8     = 0
+    static let typeInjectText: UInt8        = 1
     static let typeInjectTouchEvent: UInt8  = 2
     static let typeInjectScrollEvent: UInt8 = 3
     static let typeBackOrScreenOn: UInt8    = 4
@@ -48,6 +49,20 @@ enum ControlMessage {
         d.appendBE(UInt32(bitPattern: keycode))
         d.appendBE(UInt32(bitPattern: repeatCount))
         d.appendBE(UInt32(bitPattern: metaState))
+        return d
+    }
+
+    /// Build an INJECT_TEXT packet. The server injects the string through
+    /// Android's KeyCharacterMap, which covers punctuation and shifted
+    /// symbols that have no direct keycode. Server caps the payload at 300
+    /// bytes (CONTROL_MSG_INJECT_TEXT_MAX_LENGTH).
+    static func injectText(_ text: String) -> Data {
+        let utf8 = Data(text.utf8.prefix(300))
+        var d = Data()
+        d.reserveCapacity(5 + utf8.count)
+        d.appendBE(typeInjectText)
+        d.appendBE(UInt32(utf8.count))
+        d.append(utf8)
         return d
     }
 
@@ -153,6 +168,35 @@ enum AndroidKeycode {
         let keycode = mapSpecialKey(event) ?? mapCharacterKey(event)
         guard let keycode else { return nil }
         return (keycode, metaState(for: event.modifierFlags))
+    }
+
+    /// Returns the text to inject for a printable character key, or nil when
+    /// the event should go through the keycode path instead. Keycodes are
+    /// kept for ASCII letters, digits, and space (better app compatibility,
+    /// e.g. games reading raw key events); everything else printable —
+    /// punctuation and shifted symbols like `!` or `@` that have no direct
+    /// Android keycode — is injected as text.
+    static func textForInjection(_ event: NSEvent) -> String? {
+        // Cmd/Ctrl combos are shortcuts, never text.
+        if event.modifierFlags.contains(.command) || event.modifierFlags.contains(.control) {
+            return nil
+        }
+        guard let chars = event.characters, !chars.isEmpty else { return nil }
+        // Reject control characters and function-key codepoints (0xF700+).
+        for scalar in chars.unicodeScalars {
+            if scalar.value < 0x20 || scalar.value == 0x7F { return nil }
+            if (0xF700...0xF8FF).contains(scalar.value) { return nil }
+        }
+        // Single ASCII letter/digit/space keeps the keycode path.
+        if chars.count == 1, let scalar = chars.unicodeScalars.first, scalar.isASCII {
+            switch scalar.value {
+            case 0x20, 0x30...0x39, 0x41...0x5A, 0x61...0x7A:
+                return nil
+            default:
+                break
+            }
+        }
+        return chars
     }
 
     /// True when this event is the Cmd+V paste shortcut. The caller should

@@ -80,6 +80,9 @@ struct ContentView: View {
     @State private var audioOnly: Bool = false
     @State private var videoOnly: Bool = false
     @State private var showLog: Bool = false
+    @State private var showWifiPopover: Bool = false
+    @State private var wifiAddress: String = ""
+    @State private var wifiError: String?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -184,6 +187,19 @@ struct ContentView: View {
                 .buttonStyle(IconButtonStyle())
                 .disabled(deviceManager.isRefreshing)
                 .help("Refresh device list")
+
+                Button {
+                    wifiError = nil
+                    showWifiPopover = true
+                } label: {
+                    Image(systemName: "wifi")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .buttonStyle(IconButtonStyle())
+                .help("Connect over Wi-Fi")
+                .popover(isPresented: $showWifiPopover, arrowEdge: .bottom) {
+                    wifiPopover
+                }
             }
 
             if deviceManager.devices.isEmpty && !deviceManager.isRefreshing {
@@ -197,6 +213,97 @@ struct ContentView: View {
         .onChange(of: deviceManager.devices) { newValue in
             if selectedSerial == nil, let first = newValue.first(where: { $0.state == "device" }) {
                 selectedSerial = first.serial
+            }
+        }
+    }
+
+    private var wifiPopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Connect over Wi-Fi")
+                .font(.system(size: 12, weight: .semibold))
+
+            if let serial = selectedUsbSerial {
+                Button {
+                    Task {
+                        wifiError = nil
+                        switch await deviceManager.switchToWifi(serial: serial) {
+                        case .success(let newSerial):
+                            selectedSerial = newSerial
+                            showWifiPopover = false
+                        case .failure(let error):
+                            wifiError = error.message
+                        }
+                    }
+                } label: {
+                    Label("Switch selected device to Wi-Fi", systemImage: "arrow.right.arrow.left")
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .disabled(deviceManager.isConnectingWifi)
+
+                Text("Enables TCP mode on the USB device, then reconnects wirelessly. Keep the cable until it's done.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Divider()
+            }
+
+            Text("Or connect to a device already in TCP mode:")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 6) {
+                TextField("192.168.1.42:5555", text: $wifiAddress)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+                    .onSubmit { connectToManualAddress() }
+
+                Button("Connect") { connectToManualAddress() }
+                    .disabled(wifiAddress.isEmpty || deviceManager.isConnectingWifi)
+            }
+
+            if deviceManager.isConnectingWifi {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Connecting…")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                .transition(.opacity)
+            }
+
+            if let wifiError {
+                Text(wifiError)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.uiEaseOut, value: deviceManager.isConnectingWifi)
+        .padding(14)
+        .frame(width: 260)
+    }
+
+    /// Serial of the selected device if it's a USB connection (wireless
+    /// serials look like "ip:port").
+    private var selectedUsbSerial: String? {
+        guard let serial = selectedSerial, !serial.contains(":") else { return nil }
+        return serial
+    }
+
+    private func connectToManualAddress() {
+        let address = wifiAddress.trimmingCharacters(in: .whitespaces)
+        guard !address.isEmpty else { return }
+        Task {
+            wifiError = nil
+            switch await deviceManager.connect(to: address) {
+            case .success(let serial):
+                selectedSerial = serial
+                showWifiPopover = false
+            case .failure(let error):
+                wifiError = error.message
             }
         }
     }
@@ -545,6 +652,14 @@ struct ContentView: View {
         if AndroidKeycode.isMacPasteShortcut(keyEvent.event) {
             if keyEvent.kind == .down {
                 pasteClipboard()
+            }
+            return
+        }
+        // Punctuation and shifted symbols (!, @, #, …) have no direct Android
+        // keycode; inject them as text on keyDown only.
+        if let text = AndroidKeycode.textForInjection(keyEvent.event) {
+            if keyEvent.kind == .down {
+                session.sendText(text)
             }
             return
         }

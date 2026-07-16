@@ -207,6 +207,12 @@ final class ScrcpySession: ObservableObject {
         send(control: data)
     }
 
+    func sendText(_ text: String) {
+        guard case .connected = state else { return }
+        guard !text.isEmpty else { return }
+        send(control: ControlMessage.injectText(text))
+    }
+
     func pasteClipboardText(_ text: String) {
         guard case .connected = state else { return }
         guard !text.isEmpty else { return }
