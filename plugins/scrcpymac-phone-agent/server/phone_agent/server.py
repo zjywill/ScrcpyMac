@@ -14,9 +14,10 @@ from phone_agent.recipes.wechat import send_message
 mcp = FastMCP(
     "scrcpymac-phone-agent",
     instructions=(
-        "Control a connected Android phone over adb. Use phone_screenshot to see "
-        "the screen. For Chinese text, always use phone_paste instead of phone_type. "
-        "WeChat package: com.tencent.mm."
+        "Control a connected Android phone. Prefer ScrcpyMac.app Agent service "
+        "(127.0.0.1:9477) when available for fast scrcpy screenshots and input; "
+        "otherwise falls back to adb. For Chinese text, use phone_paste. "
+        "WeChat: com.tencent.mm."
     ),
 )
 
@@ -40,8 +41,17 @@ def _err(exc: Exception) -> str:
 
 
 @mcp.tool()
+def phone_backend() -> str:
+    """Report whether the plugin is using ScrcpyMac Agent (fast) or adb (fallback)."""
+    try:
+        return _ok({"backend": _get_actions().backend()})
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
 def phone_doctor() -> str:
-    """Run environment diagnostics (adb, device, Python dependencies)."""
+    """Run environment diagnostics (adb, device, ScrcpyMac Agent, Python dependencies)."""
     return json_result(run_doctor())
 
 

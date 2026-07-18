@@ -83,6 +83,7 @@ struct ContentView: View {
     @State private var showWifiPopover: Bool = false
     @State private var wifiAddress: String = ""
     @State private var wifiError: String?
+    @State private var agentServiceEnabled: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -103,6 +104,26 @@ struct ContentView: View {
         }
         .frame(width: 620, height: 700)
         .task { await deviceManager.refresh() }
+        .onChange(of: isConnected) { connected in
+            AgentService.shared.attach(session: session)
+            if connected && agentServiceEnabled {
+                try? AgentService.shared.start()
+            } else if !connected {
+                agentServiceEnabled = false
+                AgentService.shared.stop()
+            }
+        }
+        .onChange(of: agentServiceEnabled) { enabled in
+            AgentService.shared.attach(session: session)
+            if enabled && isConnected {
+                try? AgentService.shared.start()
+            } else {
+                AgentService.shared.stop()
+            }
+        }
+        .onDisappear {
+            AgentService.shared.stop()
+        }
     }
 
     // MARK: Sidebar
@@ -335,6 +356,8 @@ struct ContentView: View {
                 optionDivider
                 optionRow("Video only", icon: "video", isOn: $videoOnly)
                     .disabled(audioOnly)
+                optionDivider
+                agentServiceRow
             }
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -345,6 +368,28 @@ struct ContentView: View {
 
     private var optionDivider: some View {
         Divider().opacity(0.4).padding(.leading, 34)
+    }
+
+    private var agentServiceRow: some View {
+        Toggle(isOn: $agentServiceEnabled) {
+            HStack(spacing: 8) {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Agent service")
+                        .font(.system(size: 12))
+                    Text("Cursor/Codex plugin · :9477")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
+        .toggleStyle(.switch)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .disabled(!isConnected)
     }
 
     private func optionRow(_ title: String, icon: String, isOn: Binding<Bool>) -> some View {

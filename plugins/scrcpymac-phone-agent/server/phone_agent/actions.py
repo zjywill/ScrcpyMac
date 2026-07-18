@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 from typing import Any, Optional
 
 from phone_agent.adb import AdbClient, AdbError
+from phone_agent.agent_client import AgentClient
 
 KEYCODES = {
     "back": 4,
@@ -27,8 +28,16 @@ KEYCODES = {
 
 
 class PhoneActions:
-    def __init__(self, client: Optional[AdbClient] = None):
+    def __init__(
+        self,
+        client: Optional[AdbClient] = None,
+        agent: Optional[AgentClient] = None,
+    ):
         self.client = client or AdbClient()
+        self.agent = agent or AgentClient()
+
+    def backend(self) -> str:
+        return self.agent.backend_name()
 
     def _ready(self) -> AdbClient:
         self.client.ensure_device()
@@ -38,6 +47,14 @@ class PhoneActions:
         return [d.to_dict() for d in self.client.list_devices()]
 
     def device_info(self) -> dict:
+        if self.agent.is_available():
+            info = self.agent.device_info()
+            try:
+                client = self._ready()
+                info["foreground"] = client.current_app()
+            except AdbError:
+                pass
+            return info
         client = self._ready()
         width, height = client.screen_size()
         app = client.current_app()
@@ -45,9 +62,12 @@ class PhoneActions:
             "serial": client.serial,
             "screen": {"width": width, "height": height},
             "foreground": app,
+            "backend": "adb",
         }
 
     def screenshot(self) -> dict:
+        if self.agent.is_available():
+            return self.agent.screenshot()
         client = self._ready()
         png = client.screenshot_png()
         width, height = client.screen_size()
@@ -59,9 +79,13 @@ class PhoneActions:
             "base64": base64.b64encode(png).decode("ascii"),
             "png_bytes": png,
             "size_bytes": len(png),
+            "backend": "adb",
         }
 
     def tap(self, x: int, y: int) -> dict:
+        if self.agent.is_available():
+            result = self.agent.tap(x, y)
+            return {**result, "serial": self.agent.device_info().get("serial", "")}
         client = self._ready()
         client.shell(f"input tap {int(x)} {int(y)}")
         return {"ok": True, "action": "tap", "x": x, "y": y, "serial": client.serial}
@@ -74,6 +98,9 @@ class PhoneActions:
         y2: int,
         duration_ms: int = 300,
     ) -> dict:
+        if self.agent.is_available():
+            result = self.agent.swipe(x1, y1, x2, y2, duration_ms=duration_ms)
+            return {**result, "serial": self.agent.device_info().get("serial", "")}
         client = self._ready()
         client.shell(
             f"input swipe {int(x1)} {int(y1)} {int(x2)} {int(y2)} {int(duration_ms)}"
@@ -91,6 +118,9 @@ class PhoneActions:
         return self.swipe(x, y, x, y, duration_ms=duration_ms)
 
     def key(self, name: str) -> dict:
+        if self.agent.is_available():
+            result = self.agent.key(name)
+            return {**result, "serial": self.agent.device_info().get("serial", "")}
         client = self._ready()
         key = name.lower().strip()
         if key not in KEYCODES:
@@ -121,6 +151,9 @@ class PhoneActions:
         return {"ok": True, "action": "type", "length": len(text), "serial": client.serial}
 
     def paste(self, text: str) -> dict:
+        if self.agent.is_available():
+            result = self.agent.paste(text)
+            return {**result, "serial": self.agent.device_info().get("serial", "")}
         client = self._ready()
         if not text:
             raise AdbError("text must not be empty")

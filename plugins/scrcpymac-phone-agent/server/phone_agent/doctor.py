@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import os
 import platform
 import shutil
 import sys
+import urllib.error
 from typing import Any
 
 from phone_agent import __version__
 from phone_agent.adb import AdbClient, AdbError, resolve_adb_path
+from phone_agent.agent_client import AgentClient
 
 
 def run_doctor() -> dict[str, Any]:
@@ -78,10 +81,35 @@ def run_doctor() -> dict[str, Any]:
         except AdbError as exc:
             add("screen_size", False, str(exc))
 
-    all_ok = all(c["ok"] for c in checks if c["name"] not in ("foreground_app",))
+    agent = AgentClient()
+    try:
+        agent_health = agent.health()
+        agent_up = bool(agent_health.get("ok"))
+        agent_connected = bool(agent_health.get("connected"))
+        if agent_connected:
+            add(
+                "scrcpymac_agent",
+                True,
+                "fast path via ScrcpyMac.app :9477",
+                backend="scrcpymac-agent",
+            )
+        elif agent_up:
+            add(
+                "scrcpymac_agent",
+                False,
+                "service running but mirror not connected — open ScrcpyMac and Connect",
+            )
+        else:
+            add("scrcpymac_agent", False, "not available (adb fallback)")
+    except (OSError, urllib.error.URLError, json.JSONDecodeError, TimeoutError):
+        add("scrcpymac_agent", False, "not running — optional; uses adb instead")
+
+    preferred_backend = "scrcpymac-agent" if agent.is_available(force_check=True) else "adb"
+    all_ok = all(c["ok"] for c in checks if c["name"] not in ("foreground_app", "scrcpymac_agent"))
     return {
         "ok": all_ok,
         "version": __version__,
+        "backend": preferred_backend,
         "checks": checks,
         "summary": "ready" if all_ok else "fix failed checks above",
         "uv_available": shutil.which("uv") is not None,

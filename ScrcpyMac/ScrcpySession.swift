@@ -160,6 +160,11 @@ final class ScrcpySession: ObservableObject {
         decoder.displayLayer = displayLayer
     }
 
+    /// Latest mirror surface for Agent Service screenshots.
+    var mirrorDisplayLayer: AVSampleBufferDisplayLayer? {
+        decoder.displayLayer
+    }
+
     /// Forward a pointer event from the mirror view. `viewPoint` is in the
     /// view's coordinate system (top-left origin, isFlipped view); `viewSize`
     /// is the view's current bounds. We linearly map to device pixel space

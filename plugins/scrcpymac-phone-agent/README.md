@@ -134,6 +134,16 @@ Placed at `bin/darwin/adb` (and arch mirrors). See `bin/darwin/README.md`.
 
 See [MARKETPLACE.md](./MARKETPLACE.md) for Cursor/Codex submission checklist.
 
+## ScrcpyMac App fast path (differentiator)
+
+When **ScrcpyMac.app** is mirroring your phone with **Agent service** enabled:
+
+1. Plugin auto-uses `http://127.0.0.1:9477` for screenshot/tap/paste (scrcpy speed)
+2. `phone_doctor` shows `backend: scrcpymac-agent`
+3. UI tree / shell still use adb
+
+Without the App, the plugin works standalone via adb.
+
 ## ScrcpyMac app
 
 This plugin works standalone. For visual mirroring, use [ScrcpyMac](https://github.com/zjywill/scrcpyMac) alongside the agent.

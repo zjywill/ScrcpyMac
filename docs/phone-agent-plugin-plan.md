@@ -677,7 +677,7 @@ Phase 0 ──► Phase 1 ──► Phase 2 ──► Phase 3 ──► Phase 4 
 | 2 | ✅ 完成 | `download-adb.sh`、install/configure 自动化 |
 | 3 | ✅ 完成 | Wi-Fi adb tools、PRIVACY、logo、wechat recipe |
 | 4 | ✅ 文档就绪 | `MARKETPLACE.md` 提交清单，待人工上架 |
-| 5 | ⏸ 未开始 | ScrcpyMac App Agent Service 联动 |
+| 5 | ✅ 完成 | ScrcpyMac App Agent Service + 插件 fast path |
 
 代码位置：`plugins/scrcpymac-phone-agent/`
 

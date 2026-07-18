@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.0 — 2026-07-18
+
+### Added
+
+- **ScrcpyMac App Agent Service** integration (Phase 5)
+- `AgentService` HTTP API in ScrcpyMac.app on `127.0.0.1:9477`
+- Plugin `agent_client.py` — auto-prefers fast scrcpy path when App is connected
+- `phone_backend` MCP tool
+- App UI toggle: **Agent service** in sidebar when mirroring
+
+### Changed
+
+- Screenshot/tap/swipe/key/paste use ScrcpyMac Agent when available, else adb
+- `scrcpymac-link` skill documents fast path setup
+
 ## 0.2.0 — 2026-07-18
 
 ### Added

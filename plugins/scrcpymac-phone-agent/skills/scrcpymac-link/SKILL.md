@@ -1,39 +1,60 @@
 ---
 name: scrcpymac-link
-description: Relate ScrcpyMac Phone Agent plugin to the ScrcpyMac mirror app. Use when the user mentions ScrcpyMac, wants to see the phone screen visually, or asks about mirror vs agent mode.
+description: Relate ScrcpyMac Phone Agent plugin to the ScrcpyMac mirror app. Use when the user mentions ScrcpyMac, wants fast agent control, or asks about mirror vs agent mode.
 ---
 
-# ScrcpyMac Link
+# ScrcpyMac Link — Fast Agent Path
 
-## Two modes
+ScrcpyMac's differentiator: the **plugin + App share one scrcpy session** for fast screenshots and input.
 
-| Mode | What | When |
-|------|------|------|
-| **Phone Agent plugin** | Headless MCP tools via adb | Codex / Claude / Cursor automation |
-| **ScrcpyMac.app** | Visual mirror + manual control | User wants to see and touch the screen |
+## Two components
 
-They complement each other. The plugin does not require the app.
+| Component | Role |
+|-----------|------|
+| **ScrcpyMac.app** | Visual mirror + **Agent service** on `127.0.0.1:9477` |
+| **Phone Agent plugin** | MCP tools for Cursor/Codex/Claude |
 
-## Recommendations
+## Enable fast path (recommended)
 
-- **Automation** (send WeChat, batch tasks): use Phone Agent MCP tools
-- **Visual debugging**: open ScrcpyMac.app to watch what the agent is doing
-- **First setup**: use ScrcpyMac or `phone_doctor` to confirm adb works
+1. Open **ScrcpyMac.app**
+2. Click **Connect** to mirror the phone
+3. Enable **Agent service** toggle in the sidebar
+4. In Cursor/Codex, run `phone_doctor` — should show `backend: scrcpymac-agent`
 
-## ScrcpyMac app
+## What gets faster
 
-- Repo: https://github.com/zjywill/scrcpyMac
-- Native macOS SwiftUI mirror using scrcpy protocol
-- USB and Wi-Fi adb supported
+| Action | adb fallback | ScrcpyMac Agent |
+|--------|--------------|-----------------|
+| Screenshot | ~300–800ms | scrcpy frame (~fast) |
+| Tap / paste | ~100–300ms | scrcpy control (~5ms) |
+| Chinese paste | clipboard cmd | scrcpy SET_CLIPBOARD |
 
-## Future: local Agent Service (planned)
+UI tree, shell, Wi-Fi adb still use **adb** even when Agent is active.
 
-ScrcpyMac may expose a local socket for faster screenshots and input. When available, the plugin will prefer that path and fall back to adb.
+## Fallback
 
-## Install plugin locally (Cursor)
+If ScrcpyMac is not running or Agent service is off, the plugin automatically uses **adb** — no configuration needed.
 
-```bash
-ln -sf /path/to/plugins/scrcpymac-phone-agent ~/.cursor/plugins/local/scrcpymac-phone-agent
+Check backend:
+
+```
+phone_backend
+phone_doctor
 ```
 
-Then reload Cursor and enable the MCP server in Customize.
+## Workflow: automation + visual debug
+
+1. Open ScrcpyMac + enable Agent service
+2. Run automation in Cursor (e.g. send WeChat)
+3. Watch the mirror window to verify each step
+
+## API (for reference)
+
+Agent HTTP API at `http://127.0.0.1:9477`:
+
+- `GET /health` — service + connection status
+- `GET /screenshot` — PNG
+- `POST /tap` `{"x": 540, "y": 1200}`
+- `POST /paste` `{"text": "你好"}`
+
+Only bound to localhost.

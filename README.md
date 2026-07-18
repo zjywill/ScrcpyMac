@@ -75,7 +75,7 @@ open ScrcpyMac.xcodeproj             # ⌘R to run, or use xcodebuild
 
 ## Phone Agent plugin
 
-Use your phone from Cursor, Codex, or Claude:
+Control your phone from Cursor/Codex with the bundled plugin. For **fast scrcpy control**, open ScrcpyMac, connect your device, and enable **Agent service** in the sidebar (`127.0.0.1:9477`).
 
 ```sh
 cd plugins/scrcpymac-phone-agent
