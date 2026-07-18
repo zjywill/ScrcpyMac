@@ -35,16 +35,29 @@ def _bundled_adb_path() -> Optional[str]:
     root = os.environ.get("PHONE_AGENT_ROOT")
     if not root:
         return None
+
+    system = platform.system().lower()
     machine = platform.machine().lower()
-    if machine in ("arm64", "aarch64"):
-        arch = "arm64"
-    elif machine in ("x86_64", "amd64"):
-        arch = "x86_64"
-    else:
-        return None
-    candidate = os.path.join(root, "bin", "darwin", arch, "adb")
-    if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
-        return candidate
+
+    if system == "darwin":
+        for candidate in (
+            os.path.join(root, "bin", "darwin", "adb"),
+            os.path.join(
+                root,
+                "bin",
+                "darwin",
+                "arm64" if machine in ("arm64", "aarch64") else "x86_64",
+                "adb",
+            ),
+        ):
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+
+    if system == "linux" and machine in ("x86_64", "amd64"):
+        candidate = os.path.join(root, "bin", "linux", "x86_64", "adb")
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+
     return None
 
 
@@ -199,3 +212,30 @@ class AdbClient:
         xml = self.shell(f"cat {remote}", timeout=30)
         self.shell(f"rm -f {remote}")
         return xml
+
+    def connect_wifi(self, host: str, port: int = 5555) -> str:
+        target = host if ":" in host else f"{host}:{port}"
+        result = self.run(["connect", target])
+        return (result.stdout or "").strip()
+
+    def disconnect_wifi(self, host: str = "") -> str:
+        args = ["disconnect"]
+        if host:
+            args.append(host if ":" in host else f"{host}:5555")
+        result = self.run(args)
+        return (result.stdout or "").strip()
+
+    def enable_tcpip(self, port: int = 5555) -> str:
+        return self.shell(f"tcpip {int(port)}")
+
+    def device_wifi_ip(self) -> str:
+        # Common path for Wi-Fi interface on Android 10+.
+        output = self.shell("ip route | awk '/wlan/ {print $9; exit}'")
+        if output and re.match(r"^\d+\.\d+\.\d+\.\d+$", output):
+            return output
+        output = self.shell(
+            "ip -f inet addr show wlan0 2>/dev/null | awk '/inet / {print $2}' | cut -d/ -f1"
+        )
+        if output and re.match(r"^\d+\.\d+\.\d+\.\d+$", output):
+            return output
+        raise AdbError("Could not detect device Wi-Fi IP. Is Wi-Fi connected?")

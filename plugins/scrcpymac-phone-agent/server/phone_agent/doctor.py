@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import platform
 import shutil
 import sys
@@ -29,7 +30,8 @@ def run_doctor() -> dict[str, Any]:
 
     try:
         adb_path = resolve_adb_path()
-        add("adb", True, adb_path)
+        bundled = adb_path.startswith(os.environ.get("PHONE_AGENT_ROOT", "\0"))
+        add("adb", True, adb_path, bundled=bundled)
     except AdbError as exc:
         add("adb", False, str(exc))
         return {

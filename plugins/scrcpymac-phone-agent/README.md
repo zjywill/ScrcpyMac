@@ -6,29 +6,31 @@ Control your Android phone from **Cursor**, **Codex**, or **Claude** — one plu
 
 | Component | Description |
 |-----------|-------------|
-| **MCP server** | 17 tools: screenshot, tap, paste, UI tree, WeChat recipe, … |
+| **MCP server** | 21 tools: screenshot, tap, paste, UI tree, Wi-Fi adb, WeChat recipe, … |
 | **Skills** | `phone-setup`, `wechat`, `android-nav`, `scrcpymac-link` |
-| **Launcher** | `bin/phone-agent` — single entry for MCP, doctor, devices |
-| **Scripts** | `install.sh`, `doctor.sh` |
+| **Launcher** | `bin/phone-agent` + `mcp-server.sh` |
+| **Scripts** | `install.sh`, `configure.sh`, `download-adb.sh`, `doctor.sh` |
 
 ## Requirements
 
 - macOS 13+ (primary target)
 - Python 3.10+
 - Android 10+ with USB debugging
-- `adb` on PATH (or bundled adb in `bin/darwin/*/adb` — optional)
+- `adb` auto-downloaded on install (or use system adb)
 
 ## Quick install
 
 ```bash
 cd plugins/scrcpymac-phone-agent
-./scripts/install.sh
+./scripts/install.sh    # installs deps, downloads adb, links Cursor local plugin
 ```
 
 ### Cursor (local test)
 
+`install.sh` symlinks the plugin automatically. Or manually:
+
 ```bash
-ln -sf "$(pwd)" ~/.cursor/plugins/local/scrcpymac-phone-agent
+./scripts/configure.sh
 ```
 
 Reload Cursor → **Customize** → enable **scrcpymac-phone-agent** MCP.
@@ -52,8 +54,8 @@ Open Codex → Plugins → install **ScrcpyMac Phone Agent**.
 {
   "mcpServers": {
     "scrcpymac-phone-agent": {
-      "command": "/absolute/path/to/plugins/scrcpymac-phone-agent/bin/phone-agent",
-      "args": ["mcp"]
+      "command": "/absolute/path/to/plugins/scrcpymac-phone-agent/mcp-server.sh",
+      "args": []
     }
   }
 }
@@ -102,17 +104,23 @@ Or call tools directly: `phone_doctor`, `phone_screenshot`, `phone_send_wechat`.
 | `phone_wait_for_text` | Wait for UI text |
 | `phone_shell` | adb shell command |
 | `phone_send_wechat` | Send WeChat message recipe |
+| `phone_enable_wifi_adb` | Enable TCP/IP adb (USB required) |
+| `phone_get_device_ip` | Device Wi-Fi IP |
+| `phone_connect_wifi` | Connect over Wi-Fi |
+| `phone_disconnect_wifi` | Disconnect Wi-Fi adb |
 
-## Bundled adb (optional)
+## Bundled adb
 
-Place platform-tools `adb` at:
+`install.sh` downloads Google platform-tools adb automatically on macOS/Linux.
 
+Manual download:
+
+```bash
+./scripts/download-adb.sh darwin   # macOS
+./scripts/download-adb.sh linux    # Linux dev
 ```
-bin/darwin/arm64/adb
-bin/darwin/x86_64/adb
-```
 
-The launcher prefers bundled adb when present. See `bin/darwin/README.md`.
+Placed at `bin/darwin/adb` (and arch mirrors). See `bin/darwin/README.md`.
 
 ## Environment variables
 
@@ -121,6 +129,10 @@ The launcher prefers bundled adb when present. See `bin/darwin/README.md`.
 | `ADB_PATH` | Override adb binary |
 | `PHONE_AGENT_SERIAL` | Target device serial |
 | `PHONE_AGENT_ROOT` | Set automatically by launcher |
+
+## Marketplace
+
+See [MARKETPLACE.md](./MARKETPLACE.md) for Cursor/Codex submission checklist.
 
 ## ScrcpyMac app
 

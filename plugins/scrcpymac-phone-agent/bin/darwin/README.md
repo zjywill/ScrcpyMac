@@ -1,27 +1,27 @@
-# Bundled adb (optional)
+# Bundled adb
 
-The plugin can ship macOS `adb` binaries here for zero-config setup.
+The plugin downloads Google **platform-tools** adb on install.
 
-## Layout
+## Layout (after `scripts/download-adb.sh`)
 
 ```
-bin/darwin/
-├── arm64/adb    # Apple Silicon
-└── x86_64/adb   # Intel Mac
+bin/darwin/adb              # macOS universal binary
+bin/darwin/arm64/adb        # mirror (same file)
+bin/darwin/x86_64/adb       # mirror (same file)
+bin/linux/x86_64/adb        # Linux dev/CI
 ```
 
-## How to add
+## Download manually
 
-1. Download [Android platform-tools](https://developer.android.com/tools/releases/platform-tools) for macOS
-2. Copy `adb` into the arch folders above
-3. `chmod +x bin/darwin/*/adb`
+```bash
+./scripts/download-adb.sh darwin
+./scripts/download-adb.sh linux
+```
 
-The launcher (`bin/phone-agent`) auto-detects architecture and sets `ADB_PATH`.
+The launcher (`bin/phone-agent`) prefers bundled adb when `PHONE_AGENT_ROOT` is set.
 
-If no bundled adb is present, the plugin falls back to system adb
-(Homebrew, Android SDK, or `$PATH`).
+Override with `ADB_PATH` or install system platform-tools.
 
 ## Note
 
 scrcpy desktop binary is **not** bundled. Phase 1 uses adb-only control.
-See `docs/phone-agent-plugin-plan.md` for the scrcpy fast-path roadmap.

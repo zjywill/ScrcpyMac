@@ -12,33 +12,33 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
-PY_MINOR="$(python3 -c 'import sys; print(sys.version_info.minor)')"
 if [[ "$(python3 -c 'import sys; print(sys.version_info >= (3, 10))')" != "True" ]]; then
   echo "ERROR: Python 3.10+ required" >&2
   exit 1
 fi
 
-chmod +x "$PLUGIN_ROOT/bin/phone-agent"
+chmod +x "$PLUGIN_ROOT/bin/phone-agent" "$PLUGIN_ROOT/mcp-server.sh"
 chmod +x "$PLUGIN_ROOT/scripts/"*.sh 2>/dev/null || true
 
+echo "==> Installing server dependencies"
 if command -v uv >/dev/null 2>&1; then
-  echo "==> Installing server dependencies with uv"
   (cd "$SERVER_DIR" && uv pip install --system -e .)
 else
-  echo "==> Installing server dependencies with pip"
   python3 -m pip install --user -e "$SERVER_DIR"
 fi
+
+UNAME="$(uname -s)"
+if [[ "$UNAME" == "Darwin" ]]; then
+  echo "==> Downloading bundled adb for macOS (if missing)"
+  "$PLUGIN_ROOT/scripts/download-adb.sh" darwin || true
+elif [[ "$UNAME" == "Linux" ]]; then
+  echo "==> Downloading bundled adb for Linux dev (if missing)"
+  "$PLUGIN_ROOT/scripts/download-adb.sh" linux || true
+fi
+
+echo ""
+"$PLUGIN_ROOT/scripts/configure.sh"
 
 echo ""
 echo "==> Running doctor"
 "$PLUGIN_ROOT/bin/phone-agent" doctor || true
-
-echo ""
-echo "==> Local test (Cursor)"
-echo "Symlink for local plugin testing:"
-echo "  ln -sf \"$PLUGIN_ROOT\" ~/.cursor/plugins/local/scrcpymac-phone-agent"
-echo ""
-echo "==> Local test (Codex)"
-echo "  codex plugin marketplace add $(cd "$PLUGIN_ROOT/../.." && pwd)"
-echo ""
-echo "Done."

@@ -223,6 +223,42 @@ def phone_send_wechat(contact: str, message: str) -> str:
         return _err(exc)
 
 
+@mcp.tool()
+def phone_enable_wifi_adb(port: int = 5555) -> str:
+    """Enable TCP/IP adb on a USB-connected device (required before Wi-Fi connect)."""
+    try:
+        return _ok(_get_actions().enable_wifi_adb(port=port))
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_get_device_ip() -> str:
+    """Get the device's Wi-Fi IP address (for wireless adb)."""
+    try:
+        return _ok(_get_actions().get_device_ip())
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_connect_wifi(host: str, port: int = 5555) -> str:
+    """Connect to a device over Wi-Fi adb. Example host: 192.168.1.100."""
+    try:
+        return _ok(_get_actions().connect_wifi(host, port=port))
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_disconnect_wifi(host: str = "") -> str:
+    """Disconnect a Wi-Fi adb session. Leave host empty to disconnect all."""
+    try:
+        return _ok(_get_actions().disconnect_wifi(host))
+    except AdbError as exc:
+        return _err(exc)
+
+
 def main() -> None:
     # Lazy adb connect: allow MCP handshake even when no device is plugged in yet.
     mcp.run()

@@ -219,6 +219,35 @@ class PhoneActions:
             time.sleep(0.5)
         raise AdbError(f"Text {text!r} not found within {timeout_s}s")
 
+    def enable_wifi_adb(self, port: int = 5555) -> dict:
+        client = self._ready()
+        output = client.enable_tcpip(port)
+        return {
+            "ok": True,
+            "action": "enable_tcpip",
+            "port": port,
+            "output": output,
+            "serial": client.serial,
+        }
+
+    def get_device_ip(self) -> dict:
+        client = self._ready()
+        ip = client.device_wifi_ip()
+        return {"ok": True, "ip": ip, "serial": client.serial}
+
+    def connect_wifi(self, host: str, port: int = 5555) -> dict:
+        output = self.client.connect_wifi(host, port=port)
+        return {
+            "ok": True,
+            "action": "connect_wifi",
+            "target": host if ":" in host else f"{host}:{port}",
+            "output": output,
+        }
+
+    def disconnect_wifi(self, host: str = "") -> dict:
+        output = self.client.disconnect_wifi(host)
+        return {"ok": True, "action": "disconnect_wifi", "output": output}
+
 
 def _bounds_center(bounds: str) -> Optional[list[int]]:
     match = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", bounds)

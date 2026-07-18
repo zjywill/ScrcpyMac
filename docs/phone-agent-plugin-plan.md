@@ -1,8 +1,8 @@
 # ScrcpyMac Phone Agent 插件实现计划
 
-> 版本：0.1  
+> 版本：0.2  
 > 日期：2026-07-18  
-> 状态：Draft  
+> 状态：Phase 0–4 implemented (Phase 5 optional, not started)  
 > 负责人：ScrcpyMac 团队
 
 ---
@@ -665,6 +665,21 @@ Phase 0 ──► Phase 1 ──► Phase 2 ──► Phase 3 ──► Phase 4 
 | `phone-agent/phone_agent/recipes/` | `plugins/.../server/phone_agent/recipes/` |
 | `phone-agent/pyproject.toml` | `plugins/.../server/pyproject.toml` |
 | （新增）`server.py` | MCP 入口，封装 actions 为 tools |
+
+---
+
+## 实施状态（2026-07-18）
+
+| Phase | 状态 | 说明 |
+|-------|------|------|
+| 0 | ✅ 完成 | 目录、双 manifest、marketplace |
+| 1 | ✅ 完成 | 21 MCP tools、4 Skills、launcher |
+| 2 | ✅ 完成 | `download-adb.sh`、install/configure 自动化 |
+| 3 | ✅ 完成 | Wi-Fi adb tools、PRIVACY、logo、wechat recipe |
+| 4 | ✅ 文档就绪 | `MARKETPLACE.md` 提交清单，待人工上架 |
+| 5 | ⏸ 未开始 | ScrcpyMac App Agent Service 联动 |
+
+代码位置：`plugins/scrcpymac-phone-agent/`
 
 ---
 

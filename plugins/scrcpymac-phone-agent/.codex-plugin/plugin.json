@@ -1,21 +1,23 @@
 {
   "name": "scrcpymac-phone-agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Android phone control for Codex — bundled skills, adb tools, and WeChat workflows.",
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "ScrcpyMac Phone Agent",
     "shortDescription": "Talk to your Android phone from Codex",
-    "longDescription": "Control a connected Android device from Codex or Claude: take screenshots, tap UI elements, paste Chinese text, launch apps, and send WeChat messages using bundled skills and adb-based MCP tools.",
+    "longDescription": "Control a connected Android device from Codex or Claude: take screenshots, tap UI elements, paste Chinese text, launch apps, and send WeChat messages. Includes bundled adb download on macOS and workflow skills.",
     "developerName": "ScrcpyMac",
     "category": "Productivity",
     "capabilities": ["phone-control", "wechat", "android-automation"],
     "websiteURL": "https://github.com/zjywill/scrcpyMac",
+    "privacyPolicyURL": "https://github.com/zjywill/scrcpyMac/blob/master/plugins/scrcpymac-phone-agent/PRIVACY.md",
     "defaultPrompt": [
       "Use ScrcpyMac Phone Agent to check my connected Android device.",
       "Use ScrcpyMac Phone Agent to send a WeChat message."
     ],
-    "brandColor": "#4A90D9"
+    "brandColor": "#4A90D9",
+    "logo": "./assets/logo.svg"
   }
 }

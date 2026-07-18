@@ -23,11 +23,20 @@ description: Connect and troubleshoot an Android phone for ScrcpyMac Phone Agent
 - Replug the USB cable
 - Run `phone_list_devices` and check state is `device` (not `unauthorized`)
 - Multiple devices: set environment variable `PHONE_AGENT_SERIAL` to the target serial
-- Install adb if doctor reports missing: Android platform-tools or run `scripts/install.sh`
+- Install adb if doctor reports missing: run `scripts/install.sh`
 
 ## Multi-device
 
 When more than one device is connected, set `PHONE_AGENT_SERIAL` before tool calls.
+
+## Wi-Fi adb (optional)
+
+1. USB-connect the phone first
+2. `phone_enable_wifi_adb` — enables TCP/IP mode
+3. `phone_get_device_ip` — read device Wi-Fi IP
+4. Unplug USB (optional)
+5. `phone_connect_wifi` with the IP address
+
 
 ## Security
 
