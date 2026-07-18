@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "scrcpymac-phone-agent": {
+      "command": "bash",
+      "args": ["./bin/phone-agent", "mcp"]
+    }
+  }
+}

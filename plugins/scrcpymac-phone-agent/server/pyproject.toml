@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "scrcpymac-phone-agent"
+version = "0.1.0"
+description = "MCP server for Android phone control via adb"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.0.0",
+]
+
+[project.scripts]
+scrcpymac-phone-agent-mcp = "phone_agent.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["phone_agent"]

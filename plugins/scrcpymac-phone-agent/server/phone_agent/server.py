@@ -1,0 +1,232 @@
+"""MCP server exposing Android phone control tools."""
+
+from __future__ import annotations
+
+from typing import Optional
+
+from mcp.server.fastmcp import FastMCP, Image
+
+from phone_agent.actions import PhoneActions, json_result
+from phone_agent.adb import AdbError
+from phone_agent.doctor import run_doctor
+from phone_agent.recipes.wechat import send_message
+
+mcp = FastMCP(
+    "scrcpymac-phone-agent",
+    instructions=(
+        "Control a connected Android phone over adb. Use phone_screenshot to see "
+        "the screen. For Chinese text, always use phone_paste instead of phone_type. "
+        "WeChat package: com.tencent.mm."
+    ),
+)
+
+_actions: Optional[PhoneActions] = None
+
+
+def _get_actions() -> PhoneActions:
+    global _actions
+    if _actions is None:
+        _actions = PhoneActions()
+    return _actions
+
+
+def _ok(payload: dict) -> str:
+    payload.setdefault("ok", True)
+    return json_result(payload)
+
+
+def _err(exc: Exception) -> str:
+    return json_result({"ok": False, "error": str(exc)})
+
+
+@mcp.tool()
+def phone_doctor() -> str:
+    """Run environment diagnostics (adb, device, Python dependencies)."""
+    return json_result(run_doctor())
+
+
+@mcp.tool()
+def phone_list_devices() -> str:
+    """List Android devices visible to adb."""
+    try:
+        return _ok({"devices": _get_actions().devices()})
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_device_info() -> str:
+    """Get connected device serial, screen size, and foreground app."""
+    try:
+        return _ok(_get_actions().device_info())
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_screenshot(include_image: bool = True):
+    """Capture the device screen. Returns metadata JSON and optionally a PNG image."""
+    try:
+        shot = _get_actions().screenshot()
+        meta = _ok(
+            {
+                "serial": shot["serial"],
+                "width": shot["width"],
+                "height": shot["height"],
+                "format": shot["format"],
+                "size_bytes": shot["size_bytes"],
+                "base64": shot["base64"],
+            }
+        )
+        if include_image:
+            return meta, Image(data=shot["png_bytes"], format="png")
+        return meta
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_tap(x: int, y: int) -> str:
+    """Tap at device pixel coordinates."""
+    try:
+        return _ok(_get_actions().tap(x, y))
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_swipe(
+    x1: int,
+    y1: int,
+    x2: int,
+    y2: int,
+    duration_ms: int = 300,
+) -> str:
+    """Swipe from (x1,y1) to (x2,y2)."""
+    try:
+        return _ok(_get_actions().swipe(x1, y1, x2, y2, duration_ms=duration_ms))
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_long_press(x: int, y: int, duration_ms: int = 1000) -> str:
+    """Long press at coordinates."""
+    try:
+        return _ok(_get_actions().long_press(x, y, duration_ms=duration_ms))
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_key(name: str) -> str:
+    """Press a key: back, home, recents, enter, delete, tab, menu, power, paste."""
+    try:
+        return _ok(_get_actions().key(name))
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_type(text: str) -> str:
+    """Type short ASCII text. Do not use for Chinese — use phone_paste instead."""
+    try:
+        return _ok(_get_actions().type_text(text))
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_paste(text: str) -> str:
+    """Paste text via device clipboard (supports Chinese and emoji)."""
+    try:
+        return _ok(_get_actions().paste(text))
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_launch_app(package: str, activity: str = "") -> str:
+    """Launch an Android app by package name. Example WeChat: com.tencent.mm."""
+    try:
+        return _ok(
+            _get_actions().launch_app(package, activity=activity or None)
+        )
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_current_app() -> str:
+    """Get the foreground app package and activity."""
+    try:
+        client = _get_actions()._ready()
+        return _ok({"foreground": client.current_app(), "serial": client.serial})
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_ui_tree(compact: bool = True) -> str:
+    """Dump the UI accessibility tree as JSON nodes or raw XML."""
+    try:
+        return _ok(_get_actions().ui_tree(compact=compact))
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_find_and_tap(
+    text: str = "",
+    content_desc: str = "",
+    timeout_s: float = 10,
+) -> str:
+    """Find a UI element by visible text or content-desc, then tap it."""
+    try:
+        if not text and not content_desc:
+            raise AdbError("Provide text or content_desc")
+        return _ok(
+            _get_actions().find_and_tap(
+                text=text or None,
+                content_desc=content_desc or None,
+                timeout_s=timeout_s,
+            )
+        )
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_wait_for_text(text: str, timeout_s: float = 10) -> str:
+    """Wait until the given text appears in the UI tree."""
+    try:
+        return _ok(_get_actions().wait_for_text(text, timeout_s=timeout_s))
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_shell(command: str) -> str:
+    """Execute an adb shell command on the device."""
+    try:
+        return _ok(_get_actions().shell(command))
+    except AdbError as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_send_wechat(contact: str, message: str) -> str:
+    """High-level recipe: open WeChat, find a contact, and send a message."""
+    try:
+        return _ok(send_message(_get_actions(), contact, message))
+    except AdbError as exc:
+        return _err(exc)
+
+
+def main() -> None:
+    # Lazy adb connect: allow MCP handshake even when no device is plugged in yet.
+    mcp.run()
+
+
+if __name__ == "__main__":
+    main()

@@ -73,6 +73,18 @@ open ScrcpyMac.xcodeproj             # ⌘R to run, or use xcodebuild
 - [x] B6 — stop / reconnect hardening, clipboard paste, and minimal raw PCM audio playback
 - [ ] B7 — bundle `adb` + `scrcpy-server.jar` into the `.app` for sharing
 
+## Phone Agent plugin
+
+Use your phone from Cursor, Codex, or Claude:
+
+```sh
+cd plugins/scrcpymac-phone-agent
+./scripts/install.sh
+```
+
+See [plugins/scrcpymac-phone-agent/README.md](plugins/scrcpymac-phone-agent/README.md) and
+[docs/phone-agent-plugin-plan.md](docs/phone-agent-plugin-plan.md).
+
 ## License notes
 
 This project reuses scrcpy's server jar (Apache-2.0) on the Android side but
