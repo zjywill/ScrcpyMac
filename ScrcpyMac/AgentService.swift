@@ -33,28 +33,46 @@ final class AgentService: ObservableObject {
     }
 
     private static func route(request: AgentHTTPRequest, session: ScrcpySession?) async -> AgentHTTPResponse {
-        await MainActor.run {
-            guard let session else {
-                return .error(503, "no session attached")
-            }
-            switch (request.method, request.path) {
-            case ("GET", "/health"), ("GET", "/"):
+        switch (request.method, request.path) {
+        case ("GET", "/health"), ("GET", "/"):
+            return await MainActor.run {
+                guard let session else { return .error(503, "no session attached") }
                 return health(session: session)
-            case ("GET", "/device"):
-                return device(session: session)
-            case ("GET", "/screenshot"):
-                return screenshot(session: session)
-            case ("POST", "/tap"):
-                return tap(session: session, body: request.body)
-            case ("POST", "/swipe"):
-                return swipe(session: session, body: request.body)
-            case ("POST", "/key"):
-                return key(session: session, body: request.body)
-            case ("POST", "/paste"):
-                return paste(session: session, body: request.body)
-            default:
-                return .error(404, "not found")
             }
+        case ("GET", "/device"):
+            return await MainActor.run {
+                guard let session else { return .error(503, "no session attached") }
+                return device(session: session)
+            }
+        case ("GET", "/screenshot"):
+            return await MainActor.run {
+                guard let session else { return .error(503, "no session attached") }
+                return screenshot(session: session)
+            }
+        case ("GET", "/ui-tree"):
+            return await uiTree(session: session)
+        case ("POST", "/tap"):
+            return await MainActor.run {
+                guard let session else { return .error(503, "no session attached") }
+                return tap(session: session, body: request.body)
+            }
+        case ("POST", "/swipe"):
+            return await MainActor.run {
+                guard let session else { return .error(503, "no session attached") }
+                return swipe(session: session, body: request.body)
+            }
+        case ("POST", "/key"):
+            return await MainActor.run {
+                guard let session else { return .error(503, "no session attached") }
+                return key(session: session, body: request.body)
+            }
+        case ("POST", "/paste"):
+            return await MainActor.run {
+                guard let session else { return .error(503, "no session attached") }
+                return paste(session: session, body: request.body)
+            }
+        default:
+            return .error(404, "not found")
         }
     }
 
@@ -77,6 +95,22 @@ final class AgentService: ObservableObject {
         return .png(png)
     }
 
+    private static func uiTree(session: ScrcpySession?) async -> AgentHTTPResponse {
+        guard let session else { return .error(503, "no session attached") }
+        do {
+            let xml = try await session.agentUITreeXML()
+            var object: [String: Any] = ["ok": true, "xml": xml]
+            if let serial = await MainActor.run(body: { session.connectedSerial }) {
+                object["serial"] = serial
+            }
+            return .json(200, object: object)
+        } catch AgentServiceError.notConnected {
+            return .error(503, "not connected")
+        } catch {
+            return .error(500, error.localizedDescription)
+        }
+    }
+
     private static func tap(session: ScrcpySession, body: Data) -> AgentHTTPResponse {
         guard let json = parseJSON(body),
               let x = json["x"] as? Int,
@@ -84,7 +118,7 @@ final class AgentService: ObservableObject {
             return .error(400, "expected JSON {x, y}")
         }
         session.agentTap(x: Int32(x), y: Int32(y))
-        return .json(200, object: ["ok": true, "action": "tap", "x": x, "y": y])
+        return actionResponse(session: session, action: "tap", extra: ["x": x, "y": y])
     }
 
     private static func swipe(session: ScrcpySession, body: Data) -> AgentHTTPResponse {
@@ -101,10 +135,11 @@ final class AgentService: ObservableObject {
             x2: Int32(x2), y2: Int32(y2),
             durationMs: duration
         )
-        return .json(200, object: [
-            "ok": true, "action": "swipe",
-            "from": [x1, y1], "to": [x2, y2], "duration_ms": duration,
-        ])
+        return actionResponse(
+            session: session,
+            action: "swipe",
+            extra: ["from": [x1, y1], "to": [x2, y2], "duration_ms": duration]
+        )
     }
 
     private static func key(session: ScrcpySession, body: Data) -> AgentHTTPResponse {
@@ -114,7 +149,7 @@ final class AgentService: ObservableObject {
         }
         do {
             try session.agentKey(name: name)
-            return .json(200, object: ["ok": true, "action": "key", "name": name])
+            return actionResponse(session: session, action: "key", extra: ["name": name])
         } catch {
             return .error(400, error.localizedDescription)
         }
@@ -126,7 +161,22 @@ final class AgentService: ObservableObject {
             return .error(400, "expected JSON {text}")
         }
         session.pasteClipboardText(text)
-        return .json(200, object: ["ok": true, "action": "paste", "length": text.count])
+        return actionResponse(session: session, action: "paste", extra: ["length": text.count])
+    }
+
+    private static func actionResponse(
+        session: ScrcpySession,
+        action: String,
+        extra: [String: Any]
+    ) -> AgentHTTPResponse {
+        var object: [String: Any] = ["ok": true, "action": action]
+        for (key, value) in extra {
+            object[key] = value
+        }
+        if let serial = session.connectedSerial {
+            object["serial"] = serial
+        }
+        return .json(200, object: object)
     }
 
     private static func parseJSON(_ body: Data) -> [String: Any]? {
@@ -137,10 +187,12 @@ final class AgentService: ObservableObject {
 
 enum AgentServiceError: Error, LocalizedError {
     case unknownKey(String)
+    case notConnected
 
     var errorDescription: String? {
         switch self {
         case .unknownKey(let name): return "unknown key: \(name)"
+        case .notConnected: return "not connected"
         }
     }
 }

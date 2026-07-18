@@ -138,9 +138,11 @@ See [MARKETPLACE.md](./MARKETPLACE.md) for Cursor/Codex submission checklist.
 
 When **ScrcpyMac.app** is mirroring your phone with **Agent service** enabled:
 
-1. Plugin auto-uses `http://127.0.0.1:9477` for screenshot/tap/paste (scrcpy speed)
+1. Plugin auto-uses `http://127.0.0.1:9477` for screenshot/tap/paste/ui-tree (scrcpy speed, full-res frames)
 2. `phone_doctor` shows `backend: scrcpymac-agent`
-3. UI tree / shell still use adb
+3. Shell / Wi-Fi adb still use adb
+
+App sidebar (v0.4+): **Auto-enable on Connect**, **Install Phone Agent plugin** one-click setup.
 
 Without the App, the plugin works standalone via adb.
 

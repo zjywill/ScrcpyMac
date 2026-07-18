@@ -81,12 +81,25 @@ cp "$ADB_SRC" "$RES/bin/adb"
 cp "$SERVER_SRC" "$RES/share/scrcpy-server"
 chmod +x "$RES/bin/adb"
 
-# Re-sign ad-hoc after modifying bundle contents — otherwise the signature
-# covers only the old (empty) Resources and macOS will refuse to launch it.
-codesign --force --deep --sign - "$APP_SRC"
+PLUGIN_SRC="$ROOT/plugins/scrcpymac-phone-agent"
+if [[ -d "$PLUGIN_SRC" ]]; then
+  echo "==> bundling Phone Agent plugin into .app"
+  mkdir -p "$RES/plugins"
+  rm -rf "$RES/plugins/scrcpymac-phone-agent"
+  cp -R "$PLUGIN_SRC" "$RES/plugins/scrcpymac-phone-agent"
+  rm -rf "$RES/plugins/scrcpymac-phone-agent/server/"*.egg-info 2>/dev/null || true
+  rm -rf "$RES/plugins/scrcpymac-phone-agent/server/.venv" 2>/dev/null || true
+fi
 
 echo "    adb:    $ADB_SRC"
 echo "    server: $SERVER_SRC"
+if [[ -d "$PLUGIN_SRC" ]]; then
+  echo "    plugin: $PLUGIN_SRC"
+fi
+
+# Re-sign ad-hoc after modifying bundle contents — otherwise the signature
+# covers only the old (empty) Resources and macOS will refuse to launch it.
+codesign --force --deep --sign - "$APP_SRC"
 
 echo "==> staging DMG contents"
 cp -R "$APP_SRC" "$STAGING/"

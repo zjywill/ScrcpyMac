@@ -160,9 +160,32 @@ final class ScrcpySession: ObservableObject {
         decoder.displayLayer = displayLayer
     }
 
-    /// Latest mirror surface for Agent Service screenshots.
+    /// Latest mirror surface for Agent Service screenshots (low-res fallback).
     var mirrorDisplayLayer: AVSampleBufferDisplayLayer? {
         decoder.displayLayer
+    }
+
+    /// Device serial when connected (for Agent HTTP responses).
+    var connectedSerial: String? {
+        guard case .connected = state else { return nil }
+        return serial
+    }
+
+    /// Full-resolution PNG from the latest decoded H.264 frame.
+    func captureDecoderFramePNG() -> Data? {
+        decoder.latestFramePNG()
+    }
+
+    /// Accessibility tree XML via adb uiautomator (Agent `/ui-tree`).
+    func agentUITreeXML() async throws -> String {
+        guard case .connected = state, !serial.isEmpty else {
+            throw AgentServiceError.notConnected
+        }
+        let remote = "/sdcard/window_dump.xml"
+        _ = try await adb.run(["shell", "uiautomator", "dump", remote], serial: serial)
+        let xml = try await adb.run(["shell", "cat", remote], serial: serial)
+        _ = try? await adb.run(["shell", "rm", "-f", remote], serial: serial)
+        return xml
     }
 
     /// Forward a pointer event from the mirror view. `viewPoint` is in the

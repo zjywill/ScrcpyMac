@@ -83,7 +83,9 @@ struct ContentView: View {
     @State private var showWifiPopover: Bool = false
     @State private var wifiAddress: String = ""
     @State private var wifiError: String?
+    @AppStorage("agentServiceAutoEnable") private var agentServiceAutoEnable: Bool = true
     @State private var agentServiceEnabled: Bool = false
+    @StateObject private var pluginInstaller = PluginInstaller()
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -106,9 +108,14 @@ struct ContentView: View {
         .task { await deviceManager.refresh() }
         .onChange(of: isConnected) { connected in
             AgentService.shared.attach(session: session)
-            if connected && agentServiceEnabled {
-                try? AgentService.shared.start()
-            } else if !connected {
+            if connected {
+                if agentServiceAutoEnable {
+                    agentServiceEnabled = true
+                }
+                if agentServiceEnabled {
+                    try? AgentService.shared.start()
+                }
+            } else {
                 agentServiceEnabled = false
                 AgentService.shared.stop()
             }
@@ -358,6 +365,7 @@ struct ContentView: View {
                     .disabled(audioOnly)
                 optionDivider
                 agentServiceRow
+                pluginInstallRow
             }
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -371,25 +379,74 @@ struct ContentView: View {
     }
 
     private var agentServiceRow: some View {
-        Toggle(isOn: $agentServiceEnabled) {
-            HStack(spacing: 8) {
-                Image(systemName: "antenna.radiowaves.left.and.right")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 18)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Agent service")
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: $agentServiceEnabled) {
+                HStack(spacing: 8) {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
                         .font(.system(size: 12))
-                    Text("Cursor/Codex plugin · :9477")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 18)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Agent service")
+                            .font(.system(size: 12))
+                        Text("Cursor/Codex plugin · :9477")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
+            .toggleStyle(.switch)
+            .disabled(!isConnected)
+
+            Toggle(isOn: $agentServiceAutoEnable) {
+                Text("Auto-enable on Connect")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .toggleStyle(.switch)
         }
-        .toggleStyle(.switch)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .disabled(!isConnected)
+    }
+
+    private var pluginInstallRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                Task { await pluginInstaller.install() }
+            } label: {
+                HStack(spacing: 8) {
+                    if pluginInstaller.isRunning {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(width: 18)
+                    } else {
+                        Image(systemName: "puzzlepiece.extension")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 18)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Install Phone Agent plugin")
+                            .font(.system(size: 12))
+                        Text("Cursor / Codex · install.sh")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(pluginInstaller.isRunning)
+
+            if !pluginInstaller.lastMessage.isEmpty {
+                Text(pluginInstaller.lastMessage)
+                    .font(.system(size: 9))
+                    .foregroundStyle(pluginInstaller.lastSuccess == false ? .red : .secondary)
+                    .lineLimit(4)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 
     private func optionRow(_ title: String, icon: String, isOn: Binding<Bool>) -> some View {

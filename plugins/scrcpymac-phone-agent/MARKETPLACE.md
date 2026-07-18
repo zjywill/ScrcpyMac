@@ -9,7 +9,7 @@ Checklist for publishing **ScrcpyMac Phone Agent** to Cursor and Codex marketpla
 - [ ] Test `phone_screenshot`, `phone_paste`, `phone_send_wechat` in Cursor
 - [ ] Test plugin install via Codex `marketplace add`
 - [ ] Review [PRIVACY.md](./PRIVACY.md)
-- [ ] Add screenshots to `assets/screenshots/` (1280×800 recommended)
+- [x] Placeholder screenshots in `assets/screenshots/` (replace with real 1280×800 captures before submit)
 
 ## Cursor Marketplace
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0 — 2026-07-18
+
+### Added
+
+- Agent API `GET /ui-tree` — accessibility XML via session adb
+- App **Install Phone Agent plugin** button (runs bundled `install.sh`)
+- App preference **Auto-enable on Connect** for Agent service
+- Marketplace screenshot placeholders under `assets/screenshots/`
+
+### Changed
+
+- **Full-resolution screenshots** from H264 decoder (not mirror-layer scale)
+- Agent tap/swipe/key/paste responses include `serial` (fewer HTTP roundtrips)
+- `AgentClient` caches device info + availability with TTL; invalidates on failure
+- DMG packaging bundles Phone Agent plugin alongside adb + scrcpy-server (B7)
+
 ## 0.3.0 — 2026-07-18
 
 ### Added

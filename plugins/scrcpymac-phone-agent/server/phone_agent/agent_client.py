@@ -5,46 +5,79 @@ from __future__ import annotations
 import base64
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from typing import Any, Optional
 
 DEFAULT_AGENT_URL = os.environ.get("SCRCPYMAC_AGENT_URL", "http://127.0.0.1:9477")
+DEFAULT_AVAILABILITY_TTL_S = float(os.environ.get("SCRCPYMAC_AGENT_TTL_S", "5"))
 
 
 class AgentClient:
-    def __init__(self, base_url: str = DEFAULT_AGENT_URL, timeout_s: float = 3.0):
+    def __init__(
+        self,
+        base_url: str = DEFAULT_AGENT_URL,
+        timeout_s: float = 3.0,
+        availability_ttl_s: float = DEFAULT_AVAILABILITY_TTL_S,
+    ):
         self.base_url = base_url.rstrip("/")
         self.timeout_s = timeout_s
+        self.availability_ttl_s = availability_ttl_s
         self._available: Optional[bool] = None
+        self._availability_checked_at: float = 0.0
+        self._device_cache: Optional[dict[str, Any]] = None
+        self._device_cache_at: float = 0.0
 
     def is_available(self, *, force_check: bool = False) -> bool:
-        if self._available is not None and not force_check:
+        now = time.monotonic()
+        if (
+            not force_check
+            and self._available is not None
+            and (now - self._availability_checked_at) < self.availability_ttl_s
+        ):
             return self._available
         try:
             data = self.health()
             self._available = bool(data.get("ok")) and bool(data.get("connected"))
+            self._availability_checked_at = now
+            if self._available:
+                self._update_device_cache_from_health(data)
         except (OSError, urllib.error.URLError, json.JSONDecodeError, TimeoutError):
-            self._available = False
-        return self._available
+            self._invalidate_availability()
+        return bool(self._available)
 
     def backend_name(self) -> str:
         return "scrcpymac-agent" if self.is_available() else "adb"
 
     def health(self) -> dict[str, Any]:
-        return self._get_json("/health")
+        data = self._get_json("/health")
+        if data.get("ok") and data.get("connected"):
+            self._update_device_cache_from_health(data)
+        return data
 
-    def device_info(self) -> dict[str, Any]:
+    def device_info(self, *, force_refresh: bool = False) -> dict[str, Any]:
+        now = time.monotonic()
+        if (
+            not force_refresh
+            and self._device_cache is not None
+            and (now - self._device_cache_at) < self.availability_ttl_s
+        ):
+            return dict(self._device_cache)
+
         data = self._get_json("/device")
         screen = data.get("screen", {})
-        return {
+        info = {
             "serial": data.get("serial", ""),
             "screen": screen,
             "foreground": {},
             "backend": "scrcpymac-agent",
         }
+        self._device_cache = info
+        self._device_cache_at = now
+        return dict(info)
 
-    def screenshot(self) -> dict[str, Any]:
+    def screenshot(self) -> dict:
         png = self._get_bytes("/screenshot")
         info = self.device_info()
         screen = info.get("screen", {})
@@ -78,6 +111,10 @@ class AgentClient:
     def paste(self, text: str) -> dict[str, Any]:
         return self._post_json("/paste", {"text": text})
 
+    def ui_tree_xml(self) -> str:
+        data = self._get_json("/ui-tree")
+        return str(data.get("xml", ""))
+
     def _get_json(self, path: str) -> dict[str, Any]:
         raw = self._request("GET", path)
         return json.loads(raw.decode("utf-8"))
@@ -88,7 +125,11 @@ class AgentClient:
     def _post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         body = json.dumps(payload).encode("utf-8")
         raw = self._request("POST", path, body=body, content_type="application/json")
-        return json.loads(raw.decode("utf-8"))
+        data = json.loads(raw.decode("utf-8"))
+        serial = data.get("serial")
+        if serial:
+            self._merge_serial_into_device_cache(str(serial))
+        return data
 
     def _request(
         self,
@@ -107,5 +148,44 @@ class AgentClient:
             with urllib.request.urlopen(req, timeout=self.timeout_s) as resp:
                 return resp.read()
         except urllib.error.HTTPError as exc:
+            self._invalidate_availability()
             detail = exc.read().decode("utf-8", errors="replace")
             raise OSError(f"agent {method} {path} failed ({exc.code}): {detail}") from exc
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            self._invalidate_availability()
+            raise
+
+    def _update_device_cache_from_health(self, data: dict[str, Any]) -> None:
+        serial = data.get("serial")
+        width = data.get("width")
+        height = data.get("height")
+        if not serial:
+            return
+        screen: dict[str, Any] = {}
+        if width is not None and height is not None:
+            screen = {"width": int(width), "height": int(height)}
+        self._device_cache = {
+            "serial": str(serial),
+            "screen": screen,
+            "foreground": {},
+            "backend": "scrcpymac-agent",
+        }
+        self._device_cache_at = time.monotonic()
+
+    def _merge_serial_into_device_cache(self, serial: str) -> None:
+        if self._device_cache is None:
+            self._device_cache = {
+                "serial": serial,
+                "screen": {},
+                "foreground": {},
+                "backend": "scrcpymac-agent",
+            }
+        else:
+            self._device_cache["serial"] = serial
+        self._device_cache_at = time.monotonic()
+
+    def _invalidate_availability(self) -> None:
+        self._available = False
+        self._availability_checked_at = time.monotonic()
+        self._device_cache = None
+        self._device_cache_at = 0.0

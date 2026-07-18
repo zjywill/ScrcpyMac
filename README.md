@@ -71,7 +71,7 @@ open ScrcpyMac.xcodeproj             # ⌘R to run, or use xcodebuild
 - [x] B4 — mouse + scroll events encoded as scrcpy control messages
 - [x] B5 — keyboard input
 - [x] B6 — stop / reconnect hardening, clipboard paste, and minimal raw PCM audio playback
-- [ ] B7 — bundle `adb` + `scrcpy-server.jar` into the `.app` for sharing
+- [x] B7 — bundle `adb` + `scrcpy-server.jar` + Phone Agent plugin into the `.app` DMG (`scripts/package-dmg.sh`)
 
 ## Phone Agent plugin
 

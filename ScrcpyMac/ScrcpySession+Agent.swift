@@ -19,7 +19,7 @@ extension ScrcpySession {
         var info: [String: Any] = [
             "ok": true,
             "service": "scrcpymac-agent",
-            "version": "0.3.0",
+            "version": "0.4.0",
             "agent_running": AgentService.shared.isRunning,
         ]
         if case let .connected(meta) = state {
@@ -44,10 +44,11 @@ extension ScrcpySession {
     }
 
     func captureScreenshotPNG() -> Data? {
-        guard case .connected = state,
-              let layer = mirrorDisplayLayer else {
-            return nil
+        guard case .connected = state else { return nil }
+        if let png = captureDecoderFramePNG() {
+            return png
         }
+        guard let layer = mirrorDisplayLayer else { return nil }
         return LayerSnapshot.png(from: layer)
     }
 

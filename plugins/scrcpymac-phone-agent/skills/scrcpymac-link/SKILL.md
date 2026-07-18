@@ -17,19 +17,20 @@ ScrcpyMac's differentiator: the **plugin + App share one scrcpy session** for fa
 ## Enable fast path (recommended)
 
 1. Open **ScrcpyMac.app**
-2. Click **Connect** to mirror the phone
-3. Enable **Agent service** toggle in the sidebar
+2. Click **Connect** to mirror the phone (Agent auto-enables if preference is on)
+3. Or click **Install Phone Agent plugin** once, then enable **Agent service**
 4. In Cursor/Codex, run `phone_doctor` — should show `backend: scrcpymac-agent`
 
 ## What gets faster
 
 | Action | adb fallback | ScrcpyMac Agent |
 |--------|--------------|-----------------|
-| Screenshot | ~300–800ms | scrcpy frame (~fast) |
+| Screenshot | ~300–800ms | full-res H264 frame |
 | Tap / paste | ~100–300ms | scrcpy control (~5ms) |
+| UI tree | adb shell | session adb via `/ui-tree` |
 | Chinese paste | clipboard cmd | scrcpy SET_CLIPBOARD |
 
-UI tree, shell, Wi-Fi adb still use **adb** even when Agent is active.
+Shell and Wi-Fi adb still use **adb** even when Agent is active.
 
 ## Fallback
 
@@ -52,9 +53,11 @@ phone_doctor
 
 Agent HTTP API at `http://127.0.0.1:9477`:
 
-- `GET /health` — service + connection status
-- `GET /screenshot` — PNG
-- `POST /tap` `{"x": 540, "y": 1200}`
+- `GET /health` — service + connection status (includes serial, screen size)
+- `GET /device` — connected device metadata
+- `GET /screenshot` — full-resolution PNG
+- `GET /ui-tree` — uiautomator XML
+- `POST /tap` `{"x": 540, "y": 1200}` — response includes `serial`
 - `POST /paste` `{"text": "你好"}`
 
 Only bound to localhost.

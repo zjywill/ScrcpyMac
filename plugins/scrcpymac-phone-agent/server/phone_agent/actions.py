@@ -84,8 +84,7 @@ class PhoneActions:
 
     def tap(self, x: int, y: int) -> dict:
         if self.agent.is_available():
-            result = self.agent.tap(x, y)
-            return {**result, "serial": self.agent.device_info().get("serial", "")}
+            return self.agent.tap(x, y)
         client = self._ready()
         client.shell(f"input tap {int(x)} {int(y)}")
         return {"ok": True, "action": "tap", "x": x, "y": y, "serial": client.serial}
@@ -99,8 +98,7 @@ class PhoneActions:
         duration_ms: int = 300,
     ) -> dict:
         if self.agent.is_available():
-            result = self.agent.swipe(x1, y1, x2, y2, duration_ms=duration_ms)
-            return {**result, "serial": self.agent.device_info().get("serial", "")}
+            return self.agent.swipe(x1, y1, x2, y2, duration_ms=duration_ms)
         client = self._ready()
         client.shell(
             f"input swipe {int(x1)} {int(y1)} {int(x2)} {int(y2)} {int(duration_ms)}"
@@ -119,8 +117,7 @@ class PhoneActions:
 
     def key(self, name: str) -> dict:
         if self.agent.is_available():
-            result = self.agent.key(name)
-            return {**result, "serial": self.agent.device_info().get("serial", "")}
+            return self.agent.key(name)
         client = self._ready()
         key = name.lower().strip()
         if key not in KEYCODES:
@@ -152,8 +149,7 @@ class PhoneActions:
 
     def paste(self, text: str) -> dict:
         if self.agent.is_available():
-            result = self.agent.paste(text)
-            return {**result, "serial": self.agent.device_info().get("serial", "")}
+            return self.agent.paste(text)
         client = self._ready()
         if not text:
             raise AdbError("text must not be empty")
@@ -186,10 +182,15 @@ class PhoneActions:
         return {"ok": True, "output": output, "serial": client.serial}
 
     def ui_tree(self, *, compact: bool = True) -> dict:
-        client = self._ready()
-        xml = client.ui_tree_xml()
+        if self.agent.is_available():
+            xml = self.agent.ui_tree_xml()
+            serial = self.agent.device_info().get("serial", "")
+        else:
+            client = self._ready()
+            xml = client.ui_tree_xml()
+            serial = client.serial
         if not compact:
-            return {"ok": True, "xml": xml, "serial": client.serial}
+            return {"ok": True, "xml": xml, "serial": serial}
 
         nodes = []
         try:
@@ -214,9 +215,9 @@ class PhoneActions:
                     }
                 )
         except ET.ParseError:
-            return {"ok": True, "xml": xml, "serial": client.serial, "parse_error": True}
+            return {"ok": True, "xml": xml, "serial": serial, "parse_error": True}
 
-        return {"ok": True, "nodes": nodes, "count": len(nodes), "serial": client.serial}
+        return {"ok": True, "nodes": nodes, "count": len(nodes), "serial": serial}
 
     def find_and_tap(
         self,

@@ -2,7 +2,7 @@
   "name": "scrcpymac",
   "metadata": {
     "description": "ScrcpyMac plugins for Android phone automation",
-    "version": "0.2.0"
+    "version": "0.4.0"
   },
   "plugins": [
     {
@@ -12,7 +12,7 @@
         "path": "./plugins/scrcpymac-phone-agent"
       },
       "description": "Control your Android phone from Codex — WeChat, screenshots, UI automation",
-      "version": "0.2.0",
+      "version": "0.4.0",
       "category": "Productivity",
       "policy": {
         "installation": "AVAILABLE",
