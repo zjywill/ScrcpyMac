@@ -127,8 +127,10 @@ A native SwiftUI implementation of the scrcpy wire protocol — VideoToolbox
 H.264 decoding into an `AVSampleBufferDisplayLayer`, no SDL/ffmpeg, no desktop
 scrcpy binary. Curious? See [docs/architecture.md](docs/architecture.md).
 
-## License notes
+## License
 
-This project reuses scrcpy's server jar (Apache-2.0) on the Android side but
-does not link against the scrcpy desktop client. The Swift client here is an
+[MIT](LICENSE).
+
+ScrcpyMac reuses scrcpy's server jar (Apache-2.0) on the Android side but does
+not link against the scrcpy desktop client. The Swift client here is an
 independent implementation of the scrcpy wire protocol.
