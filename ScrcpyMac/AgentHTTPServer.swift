@@ -11,14 +11,15 @@ struct AgentHTTPResponse {
     var status: Int
     var contentType: String
     var body: Data
+    var extraHeaders: [String: String] = [:]
 
     static func json(_ status: Int, object: [String: Any]) -> AgentHTTPResponse {
         let data = (try? JSONSerialization.data(withJSONObject: object, options: [])) ?? Data()
         return AgentHTTPResponse(status: status, contentType: "application/json; charset=utf-8", body: data)
     }
 
-    static func png(_ data: Data) -> AgentHTTPResponse {
-        AgentHTTPResponse(status: 200, contentType: "image/png", body: data)
+    static func png(_ data: Data, headers: [String: String] = [:]) -> AgentHTTPResponse {
+        AgentHTTPResponse(status: 200, contentType: "image/png", body: data, extraHeaders: headers)
     }
 
     static func error(_ status: Int, message: String) -> AgentHTTPResponse {
@@ -150,6 +151,9 @@ final class AgentHTTPServer {
         var headers = "HTTP/1.1 \(response.status) \(statusText(response.status))\r\n"
         headers += "Content-Type: \(response.contentType)\r\n"
         headers += "Content-Length: \(response.body.count)\r\n"
+        for (key, value) in response.extraHeaders {
+            headers += "\(key): \(value)\r\n"
+        }
         headers += "Connection: close\r\n\r\n"
         var data = Data(headers.utf8)
         data.append(response.body)

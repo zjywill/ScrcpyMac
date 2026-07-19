@@ -77,14 +77,25 @@ class AgentClient:
         self._device_cache_at = now
         return dict(info)
 
+    def foreground_app(self) -> dict[str, Any]:
+        data = self._get_json("/foreground")
+        return dict(data.get("foreground", {}))
+
     def screenshot(self) -> dict:
-        png = self._get_bytes("/screenshot")
-        info = self.device_info()
-        screen = info.get("screen", {})
-        width = int(screen.get("width", 0))
-        height = int(screen.get("height", 0))
+        png, headers = self._get_bytes_with_headers("/screenshot")
+        width = _header_int(headers, "X-ScrcpyMac-Width")
+        height = _header_int(headers, "X-ScrcpyMac-Height")
+        serial = _header_value(headers, "X-ScrcpyMac-Serial")
+        if not serial and self._device_cache:
+            serial = str(self._device_cache.get("serial", ""))
+        if not width or not height:
+            info = self.device_info()
+            screen = info.get("screen", {})
+            width = width or int(screen.get("width", 0))
+            height = height or int(screen.get("height", 0))
+            serial = serial or str(info.get("serial", ""))
         return {
-            "serial": info.get("serial", ""),
+            "serial": serial,
             "width": width,
             "height": height,
             "format": "png",
@@ -116,15 +127,19 @@ class AgentClient:
         return str(data.get("xml", ""))
 
     def _get_json(self, path: str) -> dict[str, Any]:
-        raw = self._request("GET", path)
-        return json.loads(raw.decode("utf-8"))
+        body, _headers = self._request("GET", path)
+        return json.loads(body.decode("utf-8"))
 
     def _get_bytes(self, path: str) -> bytes:
+        body, _headers = self._request("GET", path)
+        return body
+
+    def _get_bytes_with_headers(self, path: str) -> tuple[bytes, dict[str, str]]:
         return self._request("GET", path)
 
     def _post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         body = json.dumps(payload).encode("utf-8")
-        raw = self._request("POST", path, body=body, content_type="application/json")
+        raw, _headers = self._request("POST", path, body=body, content_type="application/json")
         data = json.loads(raw.decode("utf-8"))
         serial = data.get("serial")
         if serial:
@@ -138,7 +153,7 @@ class AgentClient:
         *,
         body: bytes | None = None,
         content_type: str = "application/json",
-    ) -> bytes:
+    ) -> tuple[bytes, dict[str, str]]:
         url = f"{self.base_url}{path}"
         headers: dict[str, str] = {}
         if body is not None:
@@ -146,12 +161,13 @@ class AgentClient:
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
         try:
             with urllib.request.urlopen(req, timeout=self.timeout_s) as resp:
-                return resp.read()
+                resp_headers = {k: v for k, v in resp.headers.items()}
+                return resp.read(), resp_headers
         except urllib.error.HTTPError as exc:
             self._invalidate_availability()
             detail = exc.read().decode("utf-8", errors="replace")
             raise OSError(f"agent {method} {path} failed ({exc.code}): {detail}") from exc
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        except (urllib.error.URLError, TimeoutError, OSError):
             self._invalidate_availability()
             raise
 
@@ -189,3 +205,20 @@ class AgentClient:
         self._availability_checked_at = time.monotonic()
         self._device_cache = None
         self._device_cache_at = 0.0
+
+
+def _header_value(headers: dict[str, str], name: str) -> str:
+    for key, value in headers.items():
+        if key.lower() == name.lower():
+            return value
+    return ""
+
+
+def _header_int(headers: dict[str, str], name: str) -> int:
+    raw = _header_value(headers, name)
+    if not raw:
+        return 0
+    try:
+        return int(raw)
+    except ValueError:
+        return 0

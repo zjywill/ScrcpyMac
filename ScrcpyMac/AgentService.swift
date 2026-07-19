@@ -51,6 +51,8 @@ final class AgentService: ObservableObject {
             }
         case ("GET", "/ui-tree"):
             return await uiTree(session: session)
+        case ("GET", "/foreground"):
+            return await foreground(session: session)
         case ("POST", "/tap"):
             return await MainActor.run {
                 guard let session else { return .error(503, "no session attached") }
@@ -89,10 +91,31 @@ final class AgentService: ObservableObject {
     }
 
     private static func screenshot(session: ScrcpySession) -> AgentHTTPResponse {
-        guard let png = session.captureScreenshotPNG() else {
+        guard let png = session.captureScreenshotPNG(),
+              let meta = session.screenshotMetadata() else {
             return .error(503, "screenshot unavailable")
         }
-        return .png(png)
+        return .png(png, headers: [
+            "X-ScrcpyMac-Serial": meta.serial,
+            "X-ScrcpyMac-Width": String(meta.width),
+            "X-ScrcpyMac-Height": String(meta.height),
+        ])
+    }
+
+    private static func foreground(session: ScrcpySession?) async -> AgentHTTPResponse {
+        guard let session else { return .error(503, "no session attached") }
+        do {
+            let app = try await session.agentForegroundApp()
+            var object: [String: Any] = ["ok": true, "foreground": app]
+            if let serial = await MainActor.run(body: { session.connectedSerial }) {
+                object["serial"] = serial
+            }
+            return .json(200, object: object)
+        } catch AgentServiceError.notConnected {
+            return .error(503, "not connected")
+        } catch {
+            return .error(500, error.localizedDescription)
+        }
     }
 
     private static func uiTree(session: ScrcpySession?) async -> AgentHTTPResponse {

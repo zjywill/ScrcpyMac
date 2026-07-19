@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [master, "cursor/**"]
+  pull_request:
+
+jobs:
+  phone-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install plugin server
+        run: pip install -e plugins/scrcpymac-phone-agent/server/
+
+      - name: Download bundled adb (Linux)
+        run: plugins/scrcpymac-phone-agent/scripts/download-adb.sh linux
+
+      - name: Unit tests
+        working-directory: plugins/scrcpymac-phone-agent/server
+        run: python -m unittest discover -s tests -v
+
+      - name: Doctor smoke test
+        run: plugins/scrcpymac-phone-agent/bin/phone-agent doctor

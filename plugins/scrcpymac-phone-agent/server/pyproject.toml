@@ -12,8 +12,16 @@ dependencies = [
     "mcp>=1.0.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
 [project.scripts]
 scrcpymac-phone-agent-mcp = "phone_agent.server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["phone_agent"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

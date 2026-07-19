@@ -170,8 +170,7 @@ def phone_launch_app(package: str, activity: str = "") -> str:
 def phone_current_app() -> str:
     """Get the foreground app package and activity."""
     try:
-        client = _get_actions()._ready()
-        return _ok({"foreground": client.current_app(), "serial": client.serial})
+        return _ok(_get_actions().current_app())
     except AdbError as exc:
         return _err(exc)
 

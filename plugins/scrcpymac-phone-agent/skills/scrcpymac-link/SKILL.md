@@ -55,8 +55,9 @@ Agent HTTP API at `http://127.0.0.1:9477`:
 
 - `GET /health` — service + connection status (includes serial, screen size)
 - `GET /device` — connected device metadata
-- `GET /screenshot` — full-resolution PNG
+- `GET /screenshot` — full-resolution PNG (+ `X-ScrcpyMac-*` headers)
 - `GET /ui-tree` — uiautomator XML
+- `GET /foreground` — foreground app package/activity
 - `POST /tap` `{"x": 540, "y": 1200}` — response includes `serial`
 - `POST /paste` `{"text": "你好"}`
 

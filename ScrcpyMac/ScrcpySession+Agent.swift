@@ -19,7 +19,7 @@ extension ScrcpySession {
         var info: [String: Any] = [
             "ok": true,
             "service": "scrcpymac-agent",
-            "version": "0.4.0",
+            "version": "0.5.0",
             "agent_running": AgentService.shared.isRunning,
         ]
         if case let .connected(meta) = state {

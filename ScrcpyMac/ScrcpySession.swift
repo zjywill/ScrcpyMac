@@ -176,6 +176,12 @@ final class ScrcpySession: ObservableObject {
         decoder.latestFramePNG()
     }
 
+    /// Connected device metadata for screenshot HTTP headers.
+    func screenshotMetadata() -> (serial: String, width: Int, height: Int)? {
+        guard case let .connected(meta) = state else { return nil }
+        return (serial, meta.width, meta.height)
+    }
+
     /// Accessibility tree XML via adb uiautomator (Agent `/ui-tree`).
     func agentUITreeXML() async throws -> String {
         guard case .connected = state, !serial.isEmpty else {
@@ -186,6 +192,28 @@ final class ScrcpySession: ObservableObject {
         let xml = try await adb.run(["shell", "cat", remote], serial: serial)
         _ = try? await adb.run(["shell", "rm", "-f", remote], serial: serial)
         return xml
+    }
+
+    /// Foreground app via session adb (`GET /foreground`).
+    func agentForegroundApp() async throws -> [String: String] {
+        guard case .connected = state, !serial.isEmpty else {
+            throw AgentServiceError.notConnected
+        }
+        let output = try await adb.run(
+            ["shell", "dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' | head -1"],
+            serial: serial
+        )
+        var package = ""
+        var activity = ""
+        if let regex = try? NSRegularExpression(pattern: #"([a-zA-Z0-9_.]+)/([a-zA-Z0-9_.$]+)"#),
+           let match = regex.firstMatch(in: output, range: NSRange(output.startIndex..., in: output)),
+           match.numberOfRanges >= 3,
+           let pkgRange = Range(match.range(at: 1), in: output),
+           let actRange = Range(match.range(at: 2), in: output) {
+            package = String(output[pkgRange])
+            activity = String(output[actRange])
+        }
+        return ["package": package, "activity": activity, "raw": output.trimmingCharacters(in: .whitespacesAndNewlines)]
     }
 
     /// Forward a pointer event from the mirror view. `viewPoint` is in the

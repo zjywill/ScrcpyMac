@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0 — 2026-07-19
+
+### Added
+
+- GitHub Actions CI: unit tests + `phone-agent doctor` smoke test
+- Agent API `GET /foreground` — foreground app via session adb
+- Screenshot response headers: `X-ScrcpyMac-Serial`, `X-ScrcpyMac-Width`, `X-ScrcpyMac-Height`
+- Unit tests for `AgentClient` cache/TTL and `PhoneActions` UI tree cache
+
+### Changed
+
+- `phone_current_app` and `device_info.foreground` use Agent fast path when available
+- `find_and_tap` / `wait_for_text` use exponential backoff between UI dumps
+- UI tree cached until tap/swipe/key/paste invalidates it
+- WeChat recipe waits for home/search markers; failures include last screenshot size
+
 ## 0.4.0 — 2026-07-18
 
 ### Added
