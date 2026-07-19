@@ -71,7 +71,19 @@ open ScrcpyMac.xcodeproj             # ⌘R to run, or use xcodebuild
 - [x] B4 — mouse + scroll events encoded as scrcpy control messages
 - [x] B5 — keyboard input
 - [x] B6 — stop / reconnect hardening, clipboard paste, and minimal raw PCM audio playback
-- [ ] B7 — bundle `adb` + `scrcpy-server.jar` into the `.app` for sharing
+- [x] B7 — bundle `adb` + `scrcpy-server.jar` + Phone Agent plugin into the `.app` DMG (`scripts/package-dmg.sh`)
+
+## Phone Agent plugin
+
+Control your phone from Cursor/Codex with the bundled plugin. For **fast scrcpy control**, open ScrcpyMac, connect your device, and enable **Agent service** in the sidebar (`127.0.0.1:9477`).
+
+```sh
+cd plugins/scrcpymac-phone-agent
+./scripts/install.sh
+```
+
+See [plugins/scrcpymac-phone-agent/README.md](plugins/scrcpymac-phone-agent/README.md) and
+[docs/phone-agent-plugin-plan.md](docs/phone-agent-plugin-plan.md).
 
 ## License notes
 

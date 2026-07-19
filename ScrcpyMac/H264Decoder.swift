@@ -1,6 +1,8 @@
 import Foundation
 import AVFoundation
 import CoreMedia
+import CoreImage
+import AppKit
 import VideoToolbox
 
 /// Feeds scrcpy's H.264 Annex-B stream into an `AVSampleBufferDisplayLayer`.
@@ -13,10 +15,16 @@ import VideoToolbox
 ///    `CMBlockBuffer`, build a `CMSampleBuffer`, and `enqueue` it on the layer.
 ///    The layer is set to display-immediately, so timestamps only need to be
 ///    monotonic (we feed scrcpy's microsecond pts).
+/// 3. The same sample buffers are decoded via `VTDecompressionSession` so the
+///    Agent Service can export full-resolution PNGs (not mirror-layer scale).
 final class H264Decoder {
     weak var displayLayer: AVSampleBufferDisplayLayer?
 
     private var formatDescription: CMVideoFormatDescription?
+    private var decompressionSession: VTDecompressionSession?
+    private let frameLock = NSLock()
+    private var latestPixelBuffer: CVPixelBuffer?
+    private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
 
     func ingestConfig(_ data: Data) {
         let nalus = Self.splitAnnexB(data)
@@ -58,6 +66,9 @@ final class H264Decoder {
             }
         }
         self.formatDescription = fd
+        if let fd {
+            createDecompressionSession(formatDescription: fd)
+        }
     }
 
     func ingestFrame(_ data: Data, pts: UInt64, keyFrame: Bool) {
@@ -134,11 +145,93 @@ final class H264Decoder {
         }
 
         layer.enqueue(sampleBuffer)
+        decodeForCache(sampleBuffer: sampleBuffer)
+    }
+
+    /// Latest decoded device frame at native resolution (PNG).
+    func latestFramePNG() -> Data? {
+        frameLock.lock()
+        guard let pixelBuffer = latestPixelBuffer else {
+            frameLock.unlock()
+            return nil
+        }
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+
+        let image = CIImage(cvPixelBuffer: pixelBuffer)
+        guard let cgImage = ciContext.createCGImage(image, from: image.extent) else {
+            frameLock.unlock()
+            return nil
+        }
+        let rep = NSBitmapImageRep(cgImage: cgImage)
+        let png = rep.representation(using: .png, properties: [:])
+        frameLock.unlock()
+        return png
     }
 
     func reset() {
+        frameLock.lock()
+        latestPixelBuffer = nil
+        frameLock.unlock()
+        if let session = decompressionSession {
+            VTDecompressionSessionInvalidate(session)
+            decompressionSession = nil
+        }
         formatDescription = nil
         displayLayer?.flushAndRemoveImage()
+    }
+
+    // MARK: - Decompression cache
+
+    private func createDecompressionSession(formatDescription: CMVideoFormatDescription) {
+        if let session = decompressionSession {
+            VTDecompressionSessionInvalidate(session)
+            decompressionSession = nil
+        }
+
+        var session: VTDecompressionSession?
+        var callback = VTDecompressionOutputCallbackRecord(
+            decompressionOutputCallback: { refCon, _, status, _, imageBuffer, _, _ in
+                guard status == noErr, let imageBuffer else { return }
+                let decoder = Unmanaged<H264Decoder>.fromOpaque(refCon!).takeUnretainedValue()
+                decoder.storeLatestFrame(imageBuffer)
+            },
+            decompressionOutputRefCon: Unmanaged.passUnretained(self).toOpaque()
+        )
+        let createStatus = VTDecompressionSessionCreate(
+            allocator: kCFAllocatorDefault,
+            formatDescription: formatDescription,
+            decoderSpecification: nil,
+            imageBufferAttributes: nil,
+            outputCallback: &callback,
+            decompressionSessionOut: &session
+        )
+        if createStatus != noErr {
+            NSLog("[decoder] VTDecompressionSessionCreate failed: %d", createStatus)
+            return
+        }
+        decompressionSession = session
+    }
+
+    private func decodeForCache(sampleBuffer: CMSampleBuffer) {
+        guard let session = decompressionSession else { return }
+        var infoFlags = VTDecodeInfoFlags()
+        let status = VTDecompressionSessionDecodeFrame(
+            session,
+            sampleBuffer: sampleBuffer,
+            flags: [],
+            frameRefcon: nil,
+            infoFlagsOut: &infoFlags
+        )
+        if status != noErr {
+            NSLog("[decoder] VTDecompressionSessionDecodeFrame failed: %d", status)
+        }
+    }
+
+    private func storeLatestFrame(_ imageBuffer: CVImageBuffer) {
+        frameLock.lock()
+        latestPixelBuffer = imageBuffer
+        frameLock.unlock()
     }
 
     // MARK: - Annex B parsing

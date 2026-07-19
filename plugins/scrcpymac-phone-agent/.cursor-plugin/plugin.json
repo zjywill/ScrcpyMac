@@ -1,0 +1,15 @@
+{
+  "name": "scrcpymac-phone-agent",
+  "version": "0.5.0",
+  "description": "Control your Android phone from AI — WeChat, apps, screenshots, and UI automation via adb.",
+  "author": {
+    "name": "ScrcpyMac",
+    "email": "dev@scrcpymac.local"
+  },
+  "license": "MIT",
+  "keywords": ["android", "phone", "wechat", "adb", "automation", "scrcpy"],
+  "skills": "./skills/",
+  "mcpServers": "./mcp.json",
+  "homepage": "https://github.com/zjywill/scrcpyMac",
+  "repository": "https://github.com/zjywill/scrcpyMac"
+}

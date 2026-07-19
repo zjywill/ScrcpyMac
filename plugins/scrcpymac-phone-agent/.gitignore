@@ -1,0 +1,10 @@
+# Bundled adb binaries (downloaded by scripts/download-adb.sh)
+bin/darwin/adb
+bin/darwin/*/adb
+bin/linux/**/adb
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
