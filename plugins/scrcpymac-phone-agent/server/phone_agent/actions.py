@@ -232,9 +232,7 @@ class PhoneActions:
             if not compact and "xml" in cached:
                 return dict(cached)
 
-        agent_tree = self._agent_try(
-            lambda: (self.agent.ui_tree_xml(), self.agent.device_info().get("serial", ""))
-        )
+        agent_tree = self._agent_try(self.agent.ui_tree)
         if agent_tree is not None:
             xml, serial = agent_tree
         else:
@@ -277,52 +275,69 @@ class PhoneActions:
         self._ui_tree_cache = result
         return result
 
-    def find_and_tap(
+    def _poll_for_node(
         self,
+        criteria: "NodeCriteria",
         *,
-        text: Optional[str] = None,
-        content_desc: Optional[str] = None,
-        timeout_s: float = 10,
+        timeout_s: float,
         poll_interval_s: float = 0.4,
-    ) -> dict:
+    ) -> tuple[dict, dict]:
+        """Poll the UI tree until a node matching `criteria` appears.
+
+        Returns (matched_node, last_tree). Raises AdbError on timeout. This is
+        the single wait/backoff mechanism shared by find_and_tap/wait_for_text.
+        """
         deadline = time.time() + timeout_s
         last_tree: dict[str, Any] = {}
         attempt = 0
         while time.time() < deadline:
             last_tree = self.ui_tree(compact=True, force_refresh=attempt > 0)
-            node = _find_node(last_tree.get("nodes", []), text=text, content_desc=content_desc)
-            if node and node.get("center"):
-                x, y = node["center"]
-                tap_result = self.tap(x, y)
-                return {"ok": True, "matched": node, "tap": tap_result}
+            node = _find_node(last_tree.get("nodes", []), criteria)
+            if node is not None:
+                return node, last_tree
             attempt += 1
-            sleep_s = min(poll_interval_s * (1.5 ** max(attempt - 1, 0)), 2.0)
-            time.sleep(sleep_s)
+            time.sleep(min(poll_interval_s * (1.5 ** max(attempt - 1, 0)), 2.0))
         raise AdbError(
-            f"Element not found within {timeout_s}s "
-            f"(text={text!r}, content_desc={content_desc!r}). "
+            f"Element not found within {timeout_s}s ({criteria.describe()}). "
             f"Last tree had {last_tree.get('count', 0)} nodes."
         )
 
+    def find_and_tap(
+        self,
+        *,
+        text: Optional[Any] = None,
+        content_desc: Optional[Any] = None,
+        resource_id: Optional[Any] = None,
+        class_name: Optional[Any] = None,
+        timeout_s: float = 10,
+        poll_interval_s: float = 0.4,
+    ) -> dict:
+        criteria = NodeCriteria(
+            text=text,
+            content_desc=content_desc,
+            resource_id=resource_id,
+            class_name=class_name,
+        )
+        node, _ = self._poll_for_node(
+            criteria, timeout_s=timeout_s, poll_interval_s=poll_interval_s
+        )
+        if not node.get("center"):
+            raise AdbError(f"Matched node has no tappable bounds ({criteria.describe()})")
+        x, y = node["center"]
+        return {"ok": True, "matched": node, "tap": self.tap(x, y)}
+
     def wait_for_text(
         self,
-        text: str,
+        text: Any,
         *,
         timeout_s: float = 10,
         poll_interval_s: float = 0.4,
     ) -> dict:
-        deadline = time.time() + timeout_s
-        attempt = 0
-        while time.time() < deadline:
-            tree = self.ui_tree(compact=True, force_refresh=attempt > 0)
-            node = _find_node(tree.get("nodes", []), text=text)
-            if node:
-                serial = tree.get("serial") or self.client.serial
-                return {"ok": True, "found": node, "serial": serial}
-            attempt += 1
-            sleep_s = min(poll_interval_s * (1.5 ** max(attempt - 1, 0)), 2.0)
-            time.sleep(sleep_s)
-        raise AdbError(f"Text {text!r} not found within {timeout_s}s")
+        node, tree = self._poll_for_node(
+            NodeCriteria(text=text), timeout_s=timeout_s, poll_interval_s=poll_interval_s
+        )
+        serial = tree.get("serial") or (self._client.serial if self._client else "")
+        return {"ok": True, "found": node, "serial": serial}
 
     def enable_wifi_adb(self, port: int = 5555) -> dict:
         client = self._ready()
@@ -362,16 +377,69 @@ def _bounds_center(bounds: str) -> Optional[list[int]]:
     return [(x1 + x2) // 2, (y1 + y2) // 2]
 
 
-def _find_node(
-    nodes: list[dict],
-    *,
-    text: Optional[str] = None,
-    content_desc: Optional[str] = None,
-) -> Optional[dict]:
+def _as_list(value: Optional[Any]) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return [str(v) for v in value if v not in (None, "")]
+    return [str(value)] if value != "" else []
+
+
+class NodeCriteria:
+    """A UI-node selector supporting multiple attributes and any-of alternatives.
+
+    text / content_desc match by substring; resource_id / class_name match by
+    substring against the node's resource-id / class. Any field may be a single
+    string or a list of alternatives (a node matching *any* alternative wins).
+    This replaces the per-caller bilingual/app-specific match loops.
+    """
+
+    def __init__(
+        self,
+        *,
+        text: Optional[Any] = None,
+        content_desc: Optional[Any] = None,
+        resource_id: Optional[Any] = None,
+        class_name: Optional[Any] = None,
+    ):
+        self.text = _as_list(text)
+        self.content_desc = _as_list(content_desc)
+        self.resource_id = _as_list(resource_id)
+        self.class_name = _as_list(class_name)
+        if not any((self.text, self.content_desc, self.resource_id, self.class_name)):
+            raise AdbError("NodeCriteria requires at least one attribute")
+
+    def matches(self, node: dict) -> bool:
+        return (
+            _any_substring(self.text, node.get("text"))
+            or _any_substring(self.content_desc, node.get("content_desc"))
+            or _any_substring(self.resource_id, node.get("resource_id"))
+            or _any_substring(self.class_name, node.get("class"))
+        )
+
+    def describe(self) -> str:
+        parts = []
+        for name, values in (
+            ("text", self.text),
+            ("content_desc", self.content_desc),
+            ("resource_id", self.resource_id),
+            ("class", self.class_name),
+        ):
+            if values:
+                parts.append(f"{name}={values!r}")
+        return ", ".join(parts)
+
+
+def _any_substring(needles: list[str], haystack: Optional[str]) -> bool:
+    if not needles:
+        return False
+    text = haystack or ""
+    return any(needle and needle in text for needle in needles)
+
+
+def _find_node(nodes: list[dict], criteria: NodeCriteria) -> Optional[dict]:
     for node in nodes:
-        if text and text in (node.get("text") or ""):
-            return node
-        if content_desc and content_desc in (node.get("content_desc") or ""):
+        if criteria.matches(node):
             return node
     return None
 

@@ -27,12 +27,14 @@ final class AgentService: ObservableObject {
         try server.start()
         self.server = server
         isRunning = true
+        session?.setAgentCaptureEnabled(true)
     }
 
     func stop() {
         server?.stop()
         server = nil
         isRunning = false
+        session?.setAgentCaptureEnabled(false)
     }
 
     private static func route(request: AgentHTTPRequest, session: ScrcpySession?) async -> AgentHTTPResponse {
@@ -48,10 +50,7 @@ final class AgentService: ObservableObject {
                 return device(session: session)
             }
         case ("GET", "/screenshot"):
-            return await MainActor.run {
-                guard let session else { return .error(503, "no session attached") }
-                return screenshot(session: session)
-            }
+            return await screenshot(session: session)
         case ("GET", "/ui-tree"):
             return await uiTree(session: session)
         case ("GET", "/foreground"):
@@ -90,9 +89,19 @@ final class AgentService: ObservableObject {
         return .json(200, object: info.merging(["ok": true]) { current, _ in current })
     }
 
-    private static func screenshot(session: ScrcpySession) -> AgentHTTPResponse {
-        guard let png = session.captureScreenshotPNG(),
-              let meta = session.screenshotMetadata() else {
+    private static func screenshot(session: ScrcpySession?) async -> AgentHTTPResponse {
+        guard let session else { return .error(503, "no session attached") }
+        guard let meta = await MainActor.run(body: { session.screenshotMetadata() }) else {
+            return .error(503, "not connected")
+        }
+        // Encode the native-resolution frame off the main actor so agent
+        // screenshot loops don't freeze the UI. Fall back to a main-actor
+        // layer snapshot only when the decoder cache is empty.
+        var png = session.captureDecoderFramePNG()
+        if png == nil {
+            png = await MainActor.run(body: { session.captureLayerSnapshotPNG() })
+        }
+        guard let png else {
             return .error(503, "screenshot unavailable")
         }
         return .png(png, headers: [

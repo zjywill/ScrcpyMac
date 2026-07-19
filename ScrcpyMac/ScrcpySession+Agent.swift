@@ -46,11 +46,9 @@ extension ScrcpySession {
         ]
     }
 
-    func captureScreenshotPNG() -> Data? {
+    /// Low-res fallback snapshot of the mirror layer (must run on the main actor).
+    func captureLayerSnapshotPNG() -> Data? {
         guard case .connected = state else { return nil }
-        if let png = captureDecoderFramePNG() {
-            return png
-        }
         guard let layer = mirrorDisplayLayer else { return nil }
         return LayerSnapshot.png(from: layer)
     }
@@ -117,8 +115,8 @@ extension ScrcpySession {
         guard let code = Self.agentKeycodes[key] else {
             throw AgentServiceError.unknownKey(name)
         }
-        send(control: ControlMessage.injectKeycode(action: .down, keycode: code))
-        send(control: ControlMessage.injectKeycode(action: .up, keycode: code))
+        sendKeyEvent(action: .down, keycode: code, metaState: 0)
+        sendKeyEvent(action: .up, keycode: code, metaState: 0)
     }
 
     private func clamp(_ value: Int32, max: Int32) -> Int32 {

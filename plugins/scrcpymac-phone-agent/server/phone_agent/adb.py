@@ -31,6 +31,12 @@ class AdbError(RuntimeError):
     pass
 
 
+def _as_text(value) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value or ""
+
+
 def _bundled_adb_path() -> Optional[str]:
     root = os.environ.get("PHONE_AGENT_ROOT")
     if not root:
@@ -123,28 +129,14 @@ class AdbClient:
             raise AdbError(f"adb timed out: {' '.join(cmd)}") from exc
 
         if check and result.returncode != 0:
-            stderr = (result.stderr or "").strip()
-            stdout = (result.stdout or "").strip()
+            stderr = _as_text(result.stderr).strip()
+            stdout = _as_text(result.stdout).strip()
             detail = stderr or stdout or f"exit {result.returncode}"
             raise AdbError(f"adb {' '.join(args)} failed: {detail}")
         return result
 
     def run_bytes(self, args: list[str], *, timeout: Optional[float] = 60) -> bytes:
-        cmd = self._base_cmd() + args
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                timeout=timeout,
-                check=False,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise AdbError(f"adb timed out: {' '.join(cmd)}") from exc
-
-        if result.returncode != 0:
-            stderr = (result.stderr or b"").decode("utf-8", errors="replace").strip()
-            raise AdbError(f"adb {' '.join(args)} failed: {stderr}")
-        return result.stdout
+        return self.run(args, text=False, timeout=timeout).stdout
 
     def list_devices(self) -> list[Device]:
         result = self.run(["devices", "-l"])
@@ -207,11 +199,12 @@ class AdbClient:
         return self.run_bytes(["exec-out", "screencap", "-p"], timeout=30)
 
     def ui_tree_xml(self) -> str:
+        # One adb round trip instead of three (dump + cat + rm).
         remote = "/sdcard/window_dump.xml"
-        self.shell(f"uiautomator dump {remote}", timeout=30)
-        xml = self.shell(f"cat {remote}", timeout=30)
-        self.shell(f"rm -f {remote}")
-        return xml
+        return self.shell(
+            f"uiautomator dump {remote} >/dev/null 2>&1 && cat {remote}; rm -f {remote}",
+            timeout=30,
+        )
 
     def connect_wifi(self, host: str, port: int = 5555) -> str:
         target = host if ":" in host else f"{host}:{port}"

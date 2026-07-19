@@ -123,8 +123,16 @@ class AgentClient:
         return self._post_json("/paste", {"text": text})
 
     def ui_tree_xml(self) -> str:
+        return self.ui_tree()[0]
+
+    def ui_tree(self) -> tuple[str, str]:
+        """Return (xml, serial) from a single /ui-tree request — the response
+        already carries the serial, so no extra /device round trip is needed."""
         data = self._get_json("/ui-tree")
-        return str(data.get("xml", ""))
+        serial = str(data.get("serial", ""))
+        if serial:
+            self._merge_serial_into_device_cache(serial)
+        return str(data.get("xml", "")), serial
 
     def _get_json(self, path: str) -> dict[str, Any]:
         body, _headers = self._request("GET", path)

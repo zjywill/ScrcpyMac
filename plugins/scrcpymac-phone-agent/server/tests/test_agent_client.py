@@ -3,7 +3,7 @@ import json
 import unittest
 from unittest.mock import MagicMock, patch
 
-from phone_agent.actions import PhoneActions, _find_node
+from phone_agent.actions import NodeCriteria, PhoneActions, _find_node
 from phone_agent.agent_client import AgentClient, _header_int, _header_value
 
 
@@ -97,28 +97,55 @@ class HeaderHelperTests(unittest.TestCase):
 class PhoneActionsTests(unittest.TestCase):
     def test_find_node_matches_partial_text(self) -> None:
         nodes = [{"text": "发送消息", "content_desc": "", "center": [1, 2]}]
-        found = _find_node(nodes, text="发送")
+        found = _find_node(nodes, NodeCriteria(text="发送"))
         self.assertIsNotNone(found)
+
+    def test_criteria_matches_any_alternative(self) -> None:
+        nodes = [{"text": "Search", "content_desc": "", "resource_id": ""}]
+        self.assertIsNotNone(_find_node(nodes, NodeCriteria(text=["搜索", "Search"])))
+        self.assertIsNone(_find_node(nodes, NodeCriteria(text=["发送", "Send"])))
+
+    def test_criteria_matches_resource_id_and_class(self) -> None:
+        nodes = [{"text": "", "content_desc": "", "resource_id": "com.x:id/menu_search", "class": "android.widget.ImageView"}]
+        self.assertIsNotNone(_find_node(nodes, NodeCriteria(resource_id="menu_search")))
+        self.assertIsNotNone(_find_node(nodes, NodeCriteria(class_name="ImageView")))
+
+    def test_criteria_requires_an_attribute(self) -> None:
+        with self.assertRaises(Exception):
+            NodeCriteria()
+
+    def test_ui_tree_uses_single_agent_round_trip(self) -> None:
+        agent = MagicMock()
+        agent.is_available.return_value = True
+        agent.ui_tree.return_value = (
+            '<hierarchy><node text="发送" clickable="true" bounds="[0,0][10,10]"/></hierarchy>',
+            "device1",
+        )
+        actions = PhoneActions(agent=agent)
+        result = actions.ui_tree(compact=True)
+        self.assertEqual(result["serial"], "device1")
+        agent.ui_tree.assert_called_once()
+        agent.device_info.assert_not_called()
 
     def test_ui_tree_cache_reused_until_input(self) -> None:
         agent = MagicMock()
         agent.is_available.return_value = True
-        agent.ui_tree_xml.return_value = (
+        agent.ui_tree.return_value = (
             '<?xml version="1.0" encoding="UTF-8"?>'
-            '<hierarchy><node text="发送" clickable="true" bounds="[0,0][10,10]"/></hierarchy>'
+            '<hierarchy><node text="发送" clickable="true" bounds="[0,0][10,10]"/></hierarchy>',
+            "device1",
         )
-        agent.device_info.return_value = {"serial": "device1"}
         agent.tap.return_value = {"ok": True, "serial": "device1"}
 
         actions = PhoneActions(client=MagicMock(), agent=agent)
         first = actions.ui_tree(compact=True)
         second = actions.ui_tree(compact=True)
-        self.assertEqual(agent.ui_tree_xml.call_count, 1)
+        self.assertEqual(agent.ui_tree.call_count, 1)
         self.assertEqual(first["count"], second["count"])
 
         actions.tap(5, 5)
         actions.ui_tree(compact=True)
-        self.assertEqual(agent.ui_tree_xml.call_count, 2)
+        self.assertEqual(agent.ui_tree.call_count, 2)
 
     def test_agent_failure_falls_back_to_adb(self) -> None:
         agent = MagicMock()

@@ -82,6 +82,7 @@ def run_doctor() -> dict[str, Any]:
             add("screen_size", False, str(exc))
 
     agent = AgentClient()
+    agent_connected = False
     try:
         agent_health = agent.health()
         agent_up = bool(agent_health.get("ok"))
@@ -104,7 +105,8 @@ def run_doctor() -> dict[str, Any]:
     except (OSError, urllib.error.URLError, json.JSONDecodeError, TimeoutError):
         add("scrcpymac_agent", False, "not running — optional; uses adb instead")
 
-    preferred_backend = "scrcpymac-agent" if agent.is_available(force_check=True) else "adb"
+    # Reuse the health result already fetched above instead of a second /health.
+    preferred_backend = "scrcpymac-agent" if agent_connected else "adb"
     all_ok = all(c["ok"] for c in checks if c["name"] not in ("foreground_app", "scrcpymac_agent"))
     return {
         "ok": all_ok,

@@ -188,16 +188,21 @@ def phone_ui_tree(compact: bool = True) -> str:
 def phone_find_and_tap(
     text: str = "",
     content_desc: str = "",
+    resource_id: str = "",
+    class_name: str = "",
     timeout_s: float = 10,
 ) -> str:
-    """Find a UI element by visible text or content-desc, then tap it."""
+    """Find a UI element by visible text, content-desc, resource-id, or class,
+    then tap it. Provide at least one selector."""
     try:
-        if not text and not content_desc:
-            raise AdbError("Provide text or content_desc")
+        if not any((text, content_desc, resource_id, class_name)):
+            raise AdbError("Provide text, content_desc, resource_id, or class_name")
         return _ok(
             _get_actions().find_and_tap(
                 text=text or None,
                 content_desc=content_desc or None,
+                resource_id=resource_id or None,
+                class_name=class_name or None,
                 timeout_s=timeout_s,
             )
         )
