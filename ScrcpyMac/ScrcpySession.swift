@@ -116,7 +116,7 @@ final class ScrcpySession: ObservableObject {
     private let decoder = H264Decoder()
     private let audioPlayer = AudioPlayer()
     private var localPort: UInt16 = 0
-    private var serial: String = ""
+    private(set) var serial: String = ""
     private var scid: UInt32 = 0
     private var runToken: UInt64 = 0
     private var options = SessionOptions()
@@ -171,9 +171,16 @@ final class ScrcpySession: ObservableObject {
         return serial
     }
 
-    /// Full-resolution PNG from the latest decoded H.264 frame.
-    func captureDecoderFramePNG() -> Data? {
+    /// Full-resolution PNG from the latest decoded H.264 frame. Marked
+    /// `nonisolated` so the CIImage render + PNG encode run off the main actor.
+    nonisolated func captureDecoderFramePNG() -> Data? {
         decoder.latestFramePNG()
+    }
+
+    /// Toggle the decoder's screenshot cache. Enabled only while the Agent
+    /// service is running so mirroring alone doesn't pay for a second decode.
+    func setAgentCaptureEnabled(_ enabled: Bool) {
+        decoder.captureEnabled = enabled
     }
 
     /// Connected device metadata for screenshot HTTP headers.
@@ -187,11 +194,10 @@ final class ScrcpySession: ObservableObject {
         guard case .connected = state, !serial.isEmpty else {
             throw AgentServiceError.notConnected
         }
+        // One adb round trip instead of three (dump + cat + rm).
         let remote = "/sdcard/window_dump.xml"
-        _ = try await adb.run(["shell", "uiautomator", "dump", remote], serial: serial)
-        let xml = try await adb.run(["shell", "cat", remote], serial: serial)
-        _ = try? await adb.run(["shell", "rm", "-f", remote], serial: serial)
-        return xml
+        let command = "uiautomator dump \(remote) >/dev/null 2>&1 && cat \(remote); rm -f \(remote)"
+        return try await adb.run(["shell", command], serial: serial)
     }
 
     /// Foreground app via session adb (`GET /foreground`).
@@ -279,7 +285,7 @@ final class ScrcpySession: ObservableObject {
         send(control: data)
     }
 
-    private func send(control data: Data) {
+    func send(control data: Data) {
         guard let conn = controlConnection else { return }
         conn.send(content: data, completion: .contentProcessed { error in
             if let error {

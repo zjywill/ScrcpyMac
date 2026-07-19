@@ -18,7 +18,10 @@ final class PluginInstaller: ObservableObject {
         if let res = Bundle.main.resourceURL {
             let bundled = res.appendingPathComponent("plugins/scrcpymac-phone-agent", isDirectory: true)
             if FileManager.default.fileExists(atPath: bundled.appendingPathComponent("scripts/install.sh").path) {
-                return bundled
+                // Never run install.sh inside the signed .app bundle — it chmods
+                // files and downloads adb binaries, which would break the
+                // codesign seal. Stage a copy under Application Support instead.
+                return stagedPluginRoot(from: bundled)
             }
         }
 
@@ -40,12 +43,37 @@ final class PluginInstaller: ObservableObject {
             }
         }
 
-        let support = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/ScrcpyMac/plugins/scrcpymac-phone-agent", isDirectory: true)
+        let support = supportPluginRoot()
         if FileManager.default.fileExists(atPath: support.appendingPathComponent("scripts/install.sh").path) {
             return support
         }
         return nil
+    }
+
+    private static func supportPluginRoot() -> URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/ScrcpyMac/plugins/scrcpymac-phone-agent", isDirectory: true)
+    }
+
+    /// Copies the read-only bundled plugin to a user-writable location so the
+    /// install script never mutates the signed app bundle.
+    private static func stagedPluginRoot(from bundled: URL) -> URL? {
+        let fm = FileManager.default
+        let dest = supportPluginRoot()
+        do {
+            try fm.createDirectory(
+                at: dest.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            if fm.fileExists(atPath: dest.path) {
+                try fm.removeItem(at: dest)
+            }
+            try fm.copyItem(at: bundled, to: dest)
+            return dest
+        } catch {
+            NSLog("[plugin] failed to stage plugin outside app bundle: %@", "\(error)")
+            return nil
+        }
     }
 
     func install() async {
@@ -88,9 +116,20 @@ final class PluginInstaller: ObservableObject {
         proc.standardOutput = out
         proc.standardError = err
         try proc.run()
+        // Drain both pipes before waiting: if either pipe buffer fills while
+        // we block in waitUntilExit, the child deadlocks on write.
+        let errHandle = err.fileHandleForReading
+        var errData = Data()
+        let errDrained = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .utility).async {
+            errData = errHandle.readDataToEndOfFile()
+            errDrained.signal()
+        }
+        let outData = out.fileHandleForReading.readDataToEndOfFile()
+        errDrained.wait()
         proc.waitUntilExit()
-        let outText = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        let errText = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let outText = String(data: outData, encoding: .utf8) ?? ""
+        let errText = String(data: errData, encoding: .utf8) ?? ""
         if proc.terminationStatus != 0 {
             throw ProcessRunner.Failure(exitCode: proc.terminationStatus, stderr: errText.isEmpty ? outText : errText)
         }

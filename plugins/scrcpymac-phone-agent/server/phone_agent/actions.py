@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import shlex
 import time
 import xml.etree.ElementTree as ET
 from typing import Any, Optional
@@ -33,9 +34,17 @@ class PhoneActions:
         client: Optional[AdbClient] = None,
         agent: Optional[AgentClient] = None,
     ):
-        self.client = client or AdbClient()
+        # adb resolution is lazy: agent-backed operations must keep working
+        # even when adb is not installed at all.
+        self._client = client
         self.agent = agent or AgentClient()
         self._ui_tree_cache: Optional[dict[str, Any]] = None
+
+    @property
+    def client(self) -> AdbClient:
+        if self._client is None:
+            self._client = AdbClient()
+        return self._client
 
     def backend(self) -> str:
         return self.agent.backend_name()
@@ -44,23 +53,32 @@ class PhoneActions:
         self.client.ensure_device()
         return self.client
 
+    def _agent_try(self, fn):
+        """Run an agent-backend call; return None (caller falls back to adb)
+        when the agent is unavailable or fails mid-flight."""
+        if not self.agent.is_available():
+            return None
+        try:
+            return fn()
+        except OSError:
+            # _request already invalidated the availability cache.
+            return None
+
     def _invalidate_ui_tree_cache(self) -> None:
         self._ui_tree_cache = None
 
     def _foreground_app(self) -> dict[str, Any]:
-        if self.agent.is_available():
-            try:
-                return self.agent.foreground_app()
-            except OSError:
-                pass
+        result = self._agent_try(self.agent.foreground_app)
+        if result is not None:
+            return result
         return self._ready().current_app()
 
     def devices(self) -> list[dict]:
         return [d.to_dict() for d in self.client.list_devices()]
 
     def device_info(self) -> dict:
-        if self.agent.is_available():
-            info = self.agent.device_info()
+        info = self._agent_try(self.agent.device_info)
+        if info is not None:
             try:
                 info["foreground"] = self._foreground_app()
             except AdbError:
@@ -78,16 +96,14 @@ class PhoneActions:
 
     def current_app(self) -> dict:
         app = self._foreground_app()
-        serial = ""
-        if self.agent.is_available():
-            serial = self.agent.device_info().get("serial", "")
-        else:
-            serial = self._ready().serial
+        info = self._agent_try(self.agent.device_info)
+        serial = info.get("serial", "") if info is not None else self._ready().serial
         return {"foreground": app, "serial": serial}
 
     def screenshot(self) -> dict:
-        if self.agent.is_available():
-            return self.agent.screenshot()
+        result = self._agent_try(self.agent.screenshot)
+        if result is not None:
+            return result
         client = self._ready()
         png = client.screenshot_png()
         width, height = client.screen_size()
@@ -103,9 +119,8 @@ class PhoneActions:
         }
 
     def tap(self, x: int, y: int) -> dict:
-        if self.agent.is_available():
-            result = self.agent.tap(x, y)
-        else:
+        result = self._agent_try(lambda: self.agent.tap(x, y))
+        if result is None:
             client = self._ready()
             client.shell(f"input tap {int(x)} {int(y)}")
             result = {"ok": True, "action": "tap", "x": x, "y": y, "serial": client.serial}
@@ -120,9 +135,10 @@ class PhoneActions:
         y2: int,
         duration_ms: int = 300,
     ) -> dict:
-        if self.agent.is_available():
-            result = self.agent.swipe(x1, y1, x2, y2, duration_ms=duration_ms)
-        else:
+        result = self._agent_try(
+            lambda: self.agent.swipe(x1, y1, x2, y2, duration_ms=duration_ms)
+        )
+        if result is None:
             client = self._ready()
             client.shell(
                 f"input swipe {int(x1)} {int(y1)} {int(x2)} {int(y2)} {int(duration_ms)}"
@@ -142,9 +158,8 @@ class PhoneActions:
         return self.swipe(x, y, x, y, duration_ms=duration_ms)
 
     def key(self, name: str) -> dict:
-        if self.agent.is_available():
-            result = self.agent.key(name)
-        else:
+        result = self._agent_try(lambda: self.agent.key(name))
+        if result is None:
             client = self._ready()
             key = name.lower().strip()
             if key not in KEYCODES:
@@ -165,35 +180,23 @@ class PhoneActions:
         client = self._ready()
         if not text:
             raise AdbError("text must not be empty")
-        escaped = (
-            text.replace("\\", "\\\\")
-            .replace("%", "%25")
-            .replace(" ", "%s")
-            .replace("'", "\\'")
-            .replace('"', '\\"')
-            .replace("&", "\\&")
-            .replace("<", "\\<")
-            .replace(">", "\\>")
-            .replace("|", "\\|")
-            .replace(";", "\\;")
-            .replace("(", "\\(")
-            .replace(")", "\\)")
-        )
-        client.shell(f"input text {escaped}")
+        # `input text` treats %s as space and % as an escape prefix; everything
+        # else is neutralized by single-quoting for the device shell (blocks
+        # $-expansion, backticks, and metacharacters).
+        escaped = text.replace("%", "%25").replace(" ", "%s")
+        client.shell(f"input text {shlex.quote(escaped)}")
         self._invalidate_ui_tree_cache()
         return {"ok": True, "action": "type", "length": len(text), "serial": client.serial}
 
     def paste(self, text: str) -> dict:
-        if self.agent.is_available():
-            result = self.agent.paste(text)
-        else:
+        if not text:
+            raise AdbError("text must not be empty")
+        result = self._agent_try(lambda: self.agent.paste(text))
+        if result is None:
             client = self._ready()
-            if not text:
-                raise AdbError("text must not be empty")
-            safe = text.replace("'", "'\\''")
-            client.shell(f"cmd clipboard set-text '{safe}'")
+            client.shell(f"cmd clipboard set-text {shlex.quote(text)}")
             time.sleep(0.15)
-            client.shell("input keyevent 279")
+            client.shell(f"input keyevent {KEYCODES['paste']}")
             result = {"ok": True, "action": "paste", "length": len(text), "serial": client.serial}
         self._invalidate_ui_tree_cache()
         return result
@@ -229,9 +232,9 @@ class PhoneActions:
             if not compact and "xml" in cached:
                 return dict(cached)
 
-        if self.agent.is_available():
-            xml = self.agent.ui_tree_xml()
-            serial = self.agent.device_info().get("serial", "")
+        agent_tree = self._agent_try(self.agent.ui_tree)
+        if agent_tree is not None:
+            xml, serial = agent_tree
         else:
             client = self._ready()
             xml = client.ui_tree_xml()
@@ -272,52 +275,69 @@ class PhoneActions:
         self._ui_tree_cache = result
         return result
 
-    def find_and_tap(
+    def _poll_for_node(
         self,
+        criteria: "NodeCriteria",
         *,
-        text: Optional[str] = None,
-        content_desc: Optional[str] = None,
-        timeout_s: float = 10,
+        timeout_s: float,
         poll_interval_s: float = 0.4,
-    ) -> dict:
+    ) -> tuple[dict, dict]:
+        """Poll the UI tree until a node matching `criteria` appears.
+
+        Returns (matched_node, last_tree). Raises AdbError on timeout. This is
+        the single wait/backoff mechanism shared by find_and_tap/wait_for_text.
+        """
         deadline = time.time() + timeout_s
         last_tree: dict[str, Any] = {}
         attempt = 0
         while time.time() < deadline:
             last_tree = self.ui_tree(compact=True, force_refresh=attempt > 0)
-            node = _find_node(last_tree.get("nodes", []), text=text, content_desc=content_desc)
-            if node and node.get("center"):
-                x, y = node["center"]
-                tap_result = self.tap(x, y)
-                return {"ok": True, "matched": node, "tap": tap_result}
+            node = _find_node(last_tree.get("nodes", []), criteria)
+            if node is not None:
+                return node, last_tree
             attempt += 1
-            sleep_s = min(poll_interval_s * (1.5 ** max(attempt - 1, 0)), 2.0)
-            time.sleep(sleep_s)
+            time.sleep(min(poll_interval_s * (1.5 ** max(attempt - 1, 0)), 2.0))
         raise AdbError(
-            f"Element not found within {timeout_s}s "
-            f"(text={text!r}, content_desc={content_desc!r}). "
+            f"Element not found within {timeout_s}s ({criteria.describe()}). "
             f"Last tree had {last_tree.get('count', 0)} nodes."
         )
 
+    def find_and_tap(
+        self,
+        *,
+        text: Optional[Any] = None,
+        content_desc: Optional[Any] = None,
+        resource_id: Optional[Any] = None,
+        class_name: Optional[Any] = None,
+        timeout_s: float = 10,
+        poll_interval_s: float = 0.4,
+    ) -> dict:
+        criteria = NodeCriteria(
+            text=text,
+            content_desc=content_desc,
+            resource_id=resource_id,
+            class_name=class_name,
+        )
+        node, _ = self._poll_for_node(
+            criteria, timeout_s=timeout_s, poll_interval_s=poll_interval_s
+        )
+        if not node.get("center"):
+            raise AdbError(f"Matched node has no tappable bounds ({criteria.describe()})")
+        x, y = node["center"]
+        return {"ok": True, "matched": node, "tap": self.tap(x, y)}
+
     def wait_for_text(
         self,
-        text: str,
+        text: Any,
         *,
         timeout_s: float = 10,
         poll_interval_s: float = 0.4,
     ) -> dict:
-        deadline = time.time() + timeout_s
-        attempt = 0
-        while time.time() < deadline:
-            tree = self.ui_tree(compact=True, force_refresh=attempt > 0)
-            node = _find_node(tree.get("nodes", []), text=text)
-            if node:
-                serial = tree.get("serial") or self.client.serial
-                return {"ok": True, "found": node, "serial": serial}
-            attempt += 1
-            sleep_s = min(poll_interval_s * (1.5 ** max(attempt - 1, 0)), 2.0)
-            time.sleep(sleep_s)
-        raise AdbError(f"Text {text!r} not found within {timeout_s}s")
+        node, tree = self._poll_for_node(
+            NodeCriteria(text=text), timeout_s=timeout_s, poll_interval_s=poll_interval_s
+        )
+        serial = tree.get("serial") or (self._client.serial if self._client else "")
+        return {"ok": True, "found": node, "serial": serial}
 
     def enable_wifi_adb(self, port: int = 5555) -> dict:
         client = self._ready()
@@ -357,16 +377,69 @@ def _bounds_center(bounds: str) -> Optional[list[int]]:
     return [(x1 + x2) // 2, (y1 + y2) // 2]
 
 
-def _find_node(
-    nodes: list[dict],
-    *,
-    text: Optional[str] = None,
-    content_desc: Optional[str] = None,
-) -> Optional[dict]:
+def _as_list(value: Optional[Any]) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return [str(v) for v in value if v not in (None, "")]
+    return [str(value)] if value != "" else []
+
+
+class NodeCriteria:
+    """A UI-node selector supporting multiple attributes and any-of alternatives.
+
+    text / content_desc match by substring; resource_id / class_name match by
+    substring against the node's resource-id / class. Any field may be a single
+    string or a list of alternatives (a node matching *any* alternative wins).
+    This replaces the per-caller bilingual/app-specific match loops.
+    """
+
+    def __init__(
+        self,
+        *,
+        text: Optional[Any] = None,
+        content_desc: Optional[Any] = None,
+        resource_id: Optional[Any] = None,
+        class_name: Optional[Any] = None,
+    ):
+        self.text = _as_list(text)
+        self.content_desc = _as_list(content_desc)
+        self.resource_id = _as_list(resource_id)
+        self.class_name = _as_list(class_name)
+        if not any((self.text, self.content_desc, self.resource_id, self.class_name)):
+            raise AdbError("NodeCriteria requires at least one attribute")
+
+    def matches(self, node: dict) -> bool:
+        return (
+            _any_substring(self.text, node.get("text"))
+            or _any_substring(self.content_desc, node.get("content_desc"))
+            or _any_substring(self.resource_id, node.get("resource_id"))
+            or _any_substring(self.class_name, node.get("class"))
+        )
+
+    def describe(self) -> str:
+        parts = []
+        for name, values in (
+            ("text", self.text),
+            ("content_desc", self.content_desc),
+            ("resource_id", self.resource_id),
+            ("class", self.class_name),
+        ):
+            if values:
+                parts.append(f"{name}={values!r}")
+        return ", ".join(parts)
+
+
+def _any_substring(needles: list[str], haystack: Optional[str]) -> bool:
+    if not needles:
+        return False
+    text = haystack or ""
+    return any(needle and needle in text for needle in needles)
+
+
+def _find_node(nodes: list[dict], criteria: NodeCriteria) -> Optional[dict]:
     for node in nodes:
-        if text and text in (node.get("text") or ""):
-            return node
-        if content_desc and content_desc in (node.get("content_desc") or ""):
+        if criteria.matches(node):
             return node
     return None
 

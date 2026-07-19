@@ -8,6 +8,9 @@ from phone_agent.actions import PhoneActions
 from phone_agent.adb import AdbError
 
 WECHAT_PACKAGE = "com.tencent.mm"
+SEARCH_LABELS = ["搜索", "Search"]
+SEND_LABELS = ["发送", "Send"]
+HOME_MARKERS = ["微信", "通讯录", "发现", "我", "WeChat", "Chats", "Contacts"]
 
 
 def send_message(
@@ -31,27 +34,16 @@ def send_message(
 
         _wait_for_wechat_ready(actions, steps, timeout_s=min(timeout_s, 8))
 
-        search_targets = [
-            {"content_desc": "搜索"},
-            {"text": "搜索"},
-            {"content_desc": "Search"},
-            {"text": "Search"},
-        ]
-        search_tapped = False
-        for target in search_targets:
-            try:
-                tap = actions.find_and_tap(timeout_s=3, **target)
-                steps.append({"step": "open_search", "target": target, "result": tap})
-                search_tapped = True
-                break
-            except AdbError:
-                continue
-
-        if not search_tapped:
-            info = actions.device_info()
-            w = info["screen"]["width"]
-            tap = actions.tap(int(w * 0.88), 180)
-            steps.append({"step": "open_search_fallback", "result": tap})
+        # One selector call with bilingual alternatives plus WeChat's search
+        # resource-id, instead of four sequential taps and a blind coordinate
+        # fallback that could mis-tap the wrong element on notched/tablet layouts.
+        tap = actions.find_and_tap(
+            text=SEARCH_LABELS,
+            content_desc=SEARCH_LABELS,
+            resource_id="menu_search",
+            timeout_s=min(timeout_s, 6),
+        )
+        steps.append({"step": "open_search", "result": tap})
 
         _wait_for_search_input(actions, steps, timeout_s=4)
 
@@ -69,23 +61,14 @@ def send_message(
         actions.paste(message)
         steps.append({"step": "type_message", "length": len(message)})
 
-        send_targets = [
-            {"text": "发送"},
-            {"content_desc": "发送"},
-            {"text": "Send"},
-            {"content_desc": "Send"},
-        ]
-        sent = False
-        for target in send_targets:
-            try:
-                tap = actions.find_and_tap(timeout_s=3, **target)
-                steps.append({"step": "tap_send", "target": target, "result": tap})
-                sent = True
-                break
-            except AdbError:
-                continue
-
-        if not sent:
+        try:
+            tap = actions.find_and_tap(
+                text=SEND_LABELS,
+                content_desc=SEND_LABELS,
+                timeout_s=3,
+            )
+            steps.append({"step": "tap_send", "result": tap})
+        except AdbError:
             actions.key("enter")
             steps.append({"step": "send_fallback", "key": "enter"})
 
@@ -118,28 +101,23 @@ def _wait_for_wechat_ready(
     *,
     timeout_s: float,
 ) -> None:
-    markers = ["微信", "通讯录", "发现", "我"]
-    for marker in markers:
-        try:
-            found = actions.wait_for_text(marker, timeout_s=timeout_s / len(markers))
-            steps.append({"step": "wait_wechat_ready", "marker": marker, "result": found})
-            return
-        except AdbError:
-            continue
-    steps.append({"step": "wait_wechat_ready", "skipped": True})
+    # One wait against all markers at once — the previous per-marker loop gave
+    # each marker only timeout/len(markers) seconds, so a slow cold start could
+    # fail every short wait and proceed into the splash screen.
+    try:
+        found = actions.wait_for_text(HOME_MARKERS, timeout_s=timeout_s)
+        steps.append({"step": "wait_wechat_ready", "result": found})
+    except AdbError:
+        steps.append({"step": "wait_wechat_ready", "skipped": True})
 
 
 def _wait_for_search_input(actions: PhoneActions, steps: list[dict], *, timeout_s: float) -> None:
-    markers = ["搜索", "Search"]
-    for marker in markers:
-        try:
-            found = actions.wait_for_text(marker, timeout_s=timeout_s)
-            steps.append({"step": "wait_search_input", "marker": marker, "result": found})
-            return
-        except AdbError:
-            continue
-    time.sleep(0.5)
-    steps.append({"step": "wait_search_input", "skipped": True})
+    try:
+        found = actions.wait_for_text(SEARCH_LABELS, timeout_s=timeout_s)
+        steps.append({"step": "wait_search_input", "result": found})
+    except AdbError:
+        time.sleep(0.5)
+        steps.append({"step": "wait_search_input", "skipped": True})
 
 
 def _safe_screenshot(actions: PhoneActions) -> dict:

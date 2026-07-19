@@ -17,7 +17,7 @@ import VideoToolbox
 ///    monotonic (we feed scrcpy's microsecond pts).
 /// 3. The same sample buffers are decoded via `VTDecompressionSession` so the
 ///    Agent Service can export full-resolution PNGs (not mirror-layer scale).
-final class H264Decoder {
+final class H264Decoder: @unchecked Sendable {
     weak var displayLayer: AVSampleBufferDisplayLayer?
 
     private var formatDescription: CMVideoFormatDescription?
@@ -25,6 +25,26 @@ final class H264Decoder {
     private let frameLock = NSLock()
     private var latestPixelBuffer: CVPixelBuffer?
     private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+
+    private let captureLock = NSLock()
+    private var _captureEnabled = false
+
+    /// When false, incoming samples are only enqueued for display and the
+    /// second (cache) decode is skipped — mirroring alone must not pay for a
+    /// full extra decode of every frame when no screenshot client is active.
+    var captureEnabled: Bool {
+        get { captureLock.lock(); defer { captureLock.unlock() }; return _captureEnabled }
+        set {
+            captureLock.lock()
+            _captureEnabled = newValue
+            captureLock.unlock()
+            if !newValue {
+                frameLock.lock()
+                latestPixelBuffer = nil
+                frameLock.unlock()
+            }
+        }
+    }
 
     func ingestConfig(_ data: Data) {
         let nalus = Self.splitAnnexB(data)
@@ -145,28 +165,29 @@ final class H264Decoder {
         }
 
         layer.enqueue(sampleBuffer)
-        decodeForCache(sampleBuffer: sampleBuffer)
+        if captureEnabled {
+            decodeForCache(sampleBuffer: sampleBuffer)
+        }
     }
 
     /// Latest decoded device frame at native resolution (PNG).
     func latestFramePNG() -> Data? {
+        // Grab the buffer reference under the lock, then release it before the
+        // expensive render/encode so the decode-output callback isn't blocked.
         frameLock.lock()
-        guard let pixelBuffer = latestPixelBuffer else {
-            frameLock.unlock()
-            return nil
-        }
+        let pixelBuffer = latestPixelBuffer
+        frameLock.unlock()
+        guard let pixelBuffer else { return nil }
+
         CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
 
         let image = CIImage(cvPixelBuffer: pixelBuffer)
         guard let cgImage = ciContext.createCGImage(image, from: image.extent) else {
-            frameLock.unlock()
             return nil
         }
         let rep = NSBitmapImageRep(cgImage: cgImage)
-        let png = rep.representation(using: .png, properties: [:])
-        frameLock.unlock()
-        return png
+        return rep.representation(using: .png, properties: [:])
     }
 
     func reset() {
