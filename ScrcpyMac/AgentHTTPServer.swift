@@ -30,9 +30,14 @@ struct AgentHTTPResponse {
 /// Minimal HTTP/1.1 server for localhost agent control (127.0.0.1).
 final class AgentHTTPServer {
     static let defaultPort: UInt16 = 9477
+    /// Upper bounds on untrusted input so a local client cannot exhaust memory.
+    static let maxHeaderBytes = 65_536
+    static let maxBodyBytes = 1_048_576
 
     private let port: UInt16
     private let handler: @Sendable (AgentHTTPRequest) async -> AgentHTTPResponse
+    /// Invoked when the listener fails after start (e.g. port already in use).
+    var onFailure: (@Sendable () -> Void)?
     private var listener: NWListener?
     private let queue = DispatchQueue(label: "com.zjywill.scrcpyMac.agent-http")
 
@@ -54,9 +59,10 @@ final class AgentHTTPServer {
         listener.newConnectionHandler = { [weak self] connection in
             self?.handle(connection: connection)
         }
-        listener.stateUpdateHandler = { state in
+        listener.stateUpdateHandler = { [weak self] state in
             if case .failed(let err) = state {
                 NSLog("[agent] listener failed: %@", "\(err)")
+                self?.onFailure?()
             }
         }
         listener.start(queue: queue)
@@ -89,6 +95,10 @@ final class AgentHTTPServer {
             if let data { buffer.append(data) }
 
             guard let headerEnd = buffer.range(of: Data([13, 10, 13, 10])) else {
+                if buffer.count > Self.maxHeaderBytes {
+                    self.send(connection: connection, response: .error(431, "headers too large"))
+                    return
+                }
                 if isComplete {
                     connection.cancel()
                     return
@@ -114,7 +124,8 @@ final class AgentHTTPServer {
                 return
             }
             let method = String(parts[0])
-            let path = String(parts[1])
+            // Route on the path only; ignore any query string.
+            let path = String(parts[1].split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)[0])
 
             var contentLength = 0
             for line in lines.dropFirst() {
@@ -124,6 +135,11 @@ final class AgentHTTPServer {
                         .trimmingCharacters(in: .whitespaces) ?? "0"
                     contentLength = Int(value) ?? 0
                 }
+            }
+
+            if contentLength < 0 || contentLength > Self.maxBodyBytes {
+                self.send(connection: connection, response: .error(413, "body too large"))
+                return
             }
 
             let bodyStart = headerEnd.upperBound
@@ -167,6 +183,8 @@ final class AgentHTTPServer {
         case 200: return "OK"
         case 400: return "Bad Request"
         case 404: return "Not Found"
+        case 413: return "Payload Too Large"
+        case 431: return "Request Header Fields Too Large"
         case 503: return "Service Unavailable"
         default: return "Error"
         }

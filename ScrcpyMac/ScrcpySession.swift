@@ -116,7 +116,7 @@ final class ScrcpySession: ObservableObject {
     private let decoder = H264Decoder()
     private let audioPlayer = AudioPlayer()
     private var localPort: UInt16 = 0
-    private var serial: String = ""
+    private(set) var serial: String = ""
     private var scid: UInt32 = 0
     private var runToken: UInt64 = 0
     private var options = SessionOptions()
@@ -279,7 +279,7 @@ final class ScrcpySession: ObservableObject {
         send(control: data)
     }
 
-    private func send(control data: Data) {
+    func send(control data: Data) {
         guard let conn = controlConnection else { return }
         conn.send(content: data, completion: .contentProcessed { error in
             if let error {

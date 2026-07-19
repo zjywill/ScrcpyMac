@@ -130,10 +130,6 @@ class AgentClient:
         body, _headers = self._request("GET", path)
         return json.loads(body.decode("utf-8"))
 
-    def _get_bytes(self, path: str) -> bytes:
-        body, _headers = self._request("GET", path)
-        return body
-
     def _get_bytes_with_headers(self, path: str) -> tuple[bytes, dict[str, str]]:
         return self._request("GET", path)
 

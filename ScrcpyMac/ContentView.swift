@@ -113,7 +113,7 @@ struct ContentView: View {
                     agentServiceEnabled = true
                 }
                 if agentServiceEnabled {
-                    try? AgentService.shared.start()
+                    startAgentService()
                 }
             } else {
                 agentServiceEnabled = false
@@ -123,13 +123,22 @@ struct ContentView: View {
         .onChange(of: agentServiceEnabled) { enabled in
             AgentService.shared.attach(session: session)
             if enabled && isConnected {
-                try? AgentService.shared.start()
+                startAgentService()
             } else {
                 AgentService.shared.stop()
             }
         }
         .onDisappear {
             AgentService.shared.stop()
+        }
+    }
+
+    private func startAgentService() {
+        do {
+            try AgentService.shared.start()
+        } catch {
+            NSLog("[agent] failed to start service: %@", "\(error)")
+            agentServiceEnabled = false
         }
     }
 

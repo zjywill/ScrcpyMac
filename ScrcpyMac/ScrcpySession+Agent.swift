@@ -13,6 +13,9 @@ extension ScrcpySession {
         "tab": 61,
         "menu": 82,
         "power": 26,
+        "volume_up": 24,
+        "volume_down": 25,
+        "paste": 279,
     ]
 
     func agentHealth() -> [String: Any] {
@@ -52,8 +55,9 @@ extension ScrcpySession {
         return LayerSnapshot.png(from: layer)
     }
 
-    func agentTap(x: Int32, y: Int32) {
-        guard case let .connected(meta) = state else { return }
+    @discardableResult
+    func agentTap(x: Int32, y: Int32) -> Bool {
+        guard case let .connected(meta) = state else { return false }
         let cx = clamp(x, max: Int32(meta.width - 1))
         let cy = clamp(y, max: Int32(meta.height - 1))
         let w = UInt16(meta.width), h = UInt16(meta.height)
@@ -65,12 +69,15 @@ extension ScrcpySession {
             action: .up, x: cx, y: cy,
             screenWidth: w, screenHeight: h, buttonsPressed: false
         ))
+        return true
     }
 
-    func agentSwipe(x1: Int32, y1: Int32, x2: Int32, y2: Int32, durationMs: Int) {
-        guard case let .connected(meta) = state else { return }
+    @discardableResult
+    func agentSwipe(x1: Int32, y1: Int32, x2: Int32, y2: Int32, durationMs: Int) async -> Bool {
+        guard case let .connected(meta) = state else { return false }
         let w = UInt16(meta.width), h = UInt16(meta.height)
         let steps = max(3, min(20, durationMs / 20))
+        let stepDelayNs = UInt64(max(0, durationMs)) * 1_000_000 / UInt64(steps)
         let cx1 = clamp(x1, max: Int32(meta.width - 1))
         let cy1 = clamp(y1, max: Int32(meta.height - 1))
         let cx2 = clamp(x2, max: Int32(meta.width - 1))
@@ -81,6 +88,9 @@ extension ScrcpySession {
             screenWidth: w, screenHeight: h, buttonsPressed: true
         ))
         for step in 1..<steps {
+            if stepDelayNs > 0 {
+                try? await Task.sleep(nanoseconds: stepDelayNs)
+            }
             let t = Float(step) / Float(steps)
             let mx = Int32(Float(cx1) + Float(cx2 - cx1) * t)
             let my = Int32(Float(cy1) + Float(cy2 - cy1) * t)
@@ -89,14 +99,20 @@ extension ScrcpySession {
                 screenWidth: w, screenHeight: h, buttonsPressed: true
             ))
         }
+        if stepDelayNs > 0 {
+            try? await Task.sleep(nanoseconds: stepDelayNs)
+        }
         send(control: ControlMessage.injectTouch(
             action: .up, x: cx2, y: cy2,
             screenWidth: w, screenHeight: h, buttonsPressed: false
         ))
+        return true
     }
 
     func agentKey(name: String) throws {
-        guard case .connected = state else { return }
+        guard case .connected = state else {
+            throw AgentServiceError.notConnected
+        }
         let key = name.lowercased()
         guard let code = Self.agentKeycodes[key] else {
             throw AgentServiceError.unknownKey(name)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import shlex
 import time
 import xml.etree.ElementTree as ET
 from typing import Any, Optional
@@ -33,9 +34,17 @@ class PhoneActions:
         client: Optional[AdbClient] = None,
         agent: Optional[AgentClient] = None,
     ):
-        self.client = client or AdbClient()
+        # adb resolution is lazy: agent-backed operations must keep working
+        # even when adb is not installed at all.
+        self._client = client
         self.agent = agent or AgentClient()
         self._ui_tree_cache: Optional[dict[str, Any]] = None
+
+    @property
+    def client(self) -> AdbClient:
+        if self._client is None:
+            self._client = AdbClient()
+        return self._client
 
     def backend(self) -> str:
         return self.agent.backend_name()
@@ -44,23 +53,32 @@ class PhoneActions:
         self.client.ensure_device()
         return self.client
 
+    def _agent_try(self, fn):
+        """Run an agent-backend call; return None (caller falls back to adb)
+        when the agent is unavailable or fails mid-flight."""
+        if not self.agent.is_available():
+            return None
+        try:
+            return fn()
+        except OSError:
+            # _request already invalidated the availability cache.
+            return None
+
     def _invalidate_ui_tree_cache(self) -> None:
         self._ui_tree_cache = None
 
     def _foreground_app(self) -> dict[str, Any]:
-        if self.agent.is_available():
-            try:
-                return self.agent.foreground_app()
-            except OSError:
-                pass
+        result = self._agent_try(self.agent.foreground_app)
+        if result is not None:
+            return result
         return self._ready().current_app()
 
     def devices(self) -> list[dict]:
         return [d.to_dict() for d in self.client.list_devices()]
 
     def device_info(self) -> dict:
-        if self.agent.is_available():
-            info = self.agent.device_info()
+        info = self._agent_try(self.agent.device_info)
+        if info is not None:
             try:
                 info["foreground"] = self._foreground_app()
             except AdbError:
@@ -78,16 +96,14 @@ class PhoneActions:
 
     def current_app(self) -> dict:
         app = self._foreground_app()
-        serial = ""
-        if self.agent.is_available():
-            serial = self.agent.device_info().get("serial", "")
-        else:
-            serial = self._ready().serial
+        info = self._agent_try(self.agent.device_info)
+        serial = info.get("serial", "") if info is not None else self._ready().serial
         return {"foreground": app, "serial": serial}
 
     def screenshot(self) -> dict:
-        if self.agent.is_available():
-            return self.agent.screenshot()
+        result = self._agent_try(self.agent.screenshot)
+        if result is not None:
+            return result
         client = self._ready()
         png = client.screenshot_png()
         width, height = client.screen_size()
@@ -103,9 +119,8 @@ class PhoneActions:
         }
 
     def tap(self, x: int, y: int) -> dict:
-        if self.agent.is_available():
-            result = self.agent.tap(x, y)
-        else:
+        result = self._agent_try(lambda: self.agent.tap(x, y))
+        if result is None:
             client = self._ready()
             client.shell(f"input tap {int(x)} {int(y)}")
             result = {"ok": True, "action": "tap", "x": x, "y": y, "serial": client.serial}
@@ -120,9 +135,10 @@ class PhoneActions:
         y2: int,
         duration_ms: int = 300,
     ) -> dict:
-        if self.agent.is_available():
-            result = self.agent.swipe(x1, y1, x2, y2, duration_ms=duration_ms)
-        else:
+        result = self._agent_try(
+            lambda: self.agent.swipe(x1, y1, x2, y2, duration_ms=duration_ms)
+        )
+        if result is None:
             client = self._ready()
             client.shell(
                 f"input swipe {int(x1)} {int(y1)} {int(x2)} {int(y2)} {int(duration_ms)}"
@@ -142,9 +158,8 @@ class PhoneActions:
         return self.swipe(x, y, x, y, duration_ms=duration_ms)
 
     def key(self, name: str) -> dict:
-        if self.agent.is_available():
-            result = self.agent.key(name)
-        else:
+        result = self._agent_try(lambda: self.agent.key(name))
+        if result is None:
             client = self._ready()
             key = name.lower().strip()
             if key not in KEYCODES:
@@ -165,35 +180,23 @@ class PhoneActions:
         client = self._ready()
         if not text:
             raise AdbError("text must not be empty")
-        escaped = (
-            text.replace("\\", "\\\\")
-            .replace("%", "%25")
-            .replace(" ", "%s")
-            .replace("'", "\\'")
-            .replace('"', '\\"')
-            .replace("&", "\\&")
-            .replace("<", "\\<")
-            .replace(">", "\\>")
-            .replace("|", "\\|")
-            .replace(";", "\\;")
-            .replace("(", "\\(")
-            .replace(")", "\\)")
-        )
-        client.shell(f"input text {escaped}")
+        # `input text` treats %s as space and % as an escape prefix; everything
+        # else is neutralized by single-quoting for the device shell (blocks
+        # $-expansion, backticks, and metacharacters).
+        escaped = text.replace("%", "%25").replace(" ", "%s")
+        client.shell(f"input text {shlex.quote(escaped)}")
         self._invalidate_ui_tree_cache()
         return {"ok": True, "action": "type", "length": len(text), "serial": client.serial}
 
     def paste(self, text: str) -> dict:
-        if self.agent.is_available():
-            result = self.agent.paste(text)
-        else:
+        if not text:
+            raise AdbError("text must not be empty")
+        result = self._agent_try(lambda: self.agent.paste(text))
+        if result is None:
             client = self._ready()
-            if not text:
-                raise AdbError("text must not be empty")
-            safe = text.replace("'", "'\\''")
-            client.shell(f"cmd clipboard set-text '{safe}'")
+            client.shell(f"cmd clipboard set-text {shlex.quote(text)}")
             time.sleep(0.15)
-            client.shell("input keyevent 279")
+            client.shell(f"input keyevent {KEYCODES['paste']}")
             result = {"ok": True, "action": "paste", "length": len(text), "serial": client.serial}
         self._invalidate_ui_tree_cache()
         return result
@@ -229,9 +232,11 @@ class PhoneActions:
             if not compact and "xml" in cached:
                 return dict(cached)
 
-        if self.agent.is_available():
-            xml = self.agent.ui_tree_xml()
-            serial = self.agent.device_info().get("serial", "")
+        agent_tree = self._agent_try(
+            lambda: (self.agent.ui_tree_xml(), self.agent.device_info().get("serial", ""))
+        )
+        if agent_tree is not None:
+            xml, serial = agent_tree
         else:
             client = self._ready()
             xml = client.ui_tree_xml()

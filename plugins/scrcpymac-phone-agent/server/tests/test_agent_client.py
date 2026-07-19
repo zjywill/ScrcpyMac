@@ -120,6 +120,41 @@ class PhoneActionsTests(unittest.TestCase):
         actions.ui_tree(compact=True)
         self.assertEqual(agent.ui_tree_xml.call_count, 2)
 
+    def test_agent_failure_falls_back_to_adb(self) -> None:
+        agent = MagicMock()
+        agent.is_available.return_value = True
+        agent.tap.side_effect = OSError("agent POST /tap failed (503)")
+        adb = MagicMock()
+        adb.serial = "device1"
+
+        actions = PhoneActions(client=adb, agent=agent)
+        result = actions.tap(5, 7)
+
+        adb.shell.assert_called_once_with("input tap 5 7")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["serial"], "device1")
+
+    def test_type_text_quotes_shell_metacharacters(self) -> None:
+        adb = MagicMock()
+        adb.serial = "device1"
+        actions = PhoneActions(client=adb, agent=MagicMock(is_available=lambda **_: False))
+
+        actions.type_text("pay $20 `id` 100%")
+
+        command = adb.shell.call_args[0][0]
+        self.assertTrue(command.startswith("input text "))
+        self.assertIn("'pay%s$20%s`id`%s100%25'", command)
+
+    def test_adb_client_not_constructed_when_agent_handles_call(self) -> None:
+        agent = MagicMock()
+        agent.is_available.return_value = True
+        agent.tap.return_value = {"ok": True, "serial": "device1"}
+
+        actions = PhoneActions(agent=agent)
+        with patch("phone_agent.actions.AdbClient") as adb_cls:
+            actions.tap(1, 2)
+            adb_cls.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
