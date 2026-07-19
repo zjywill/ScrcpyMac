@@ -3,7 +3,7 @@ import json
 import unittest
 from unittest.mock import MagicMock, patch
 
-from phone_agent.actions import NodeCriteria, PhoneActions, _find_node
+from phone_agent.actions import NodeCriteria, PhoneActions, _find_node, _find_nodes
 from phone_agent.agent_client import AgentClient, _header_int, _header_value
 
 
@@ -181,6 +181,233 @@ class PhoneActionsTests(unittest.TestCase):
         with patch("phone_agent.actions.AdbClient") as adb_cls:
             actions.tap(1, 2)
             adb_cls.assert_not_called()
+
+
+def _tree_actions(xml: str) -> PhoneActions:
+    agent = MagicMock()
+    agent.is_available.return_value = True
+    agent.ui_tree.return_value = (xml, "device1")
+    return PhoneActions(agent=agent)
+
+
+class UiTreeEnrichmentTests(unittest.TestCase):
+    def test_scrollable_container_kept_with_flag(self) -> None:
+        result = _tree_actions(
+            "<hierarchy>"
+            '<node class="androidx.recyclerview.widget.RecyclerView"'
+            ' scrollable="true" bounds="[0,0][1080,2000]"/>'
+            "</hierarchy>"
+        ).ui_tree(compact=True)
+        self.assertEqual(result["count"], 1)
+        node = result["nodes"][0]
+        self.assertIs(node["scrollable"], True)
+        self.assertEqual(node["index"], 0)
+
+    def test_empty_edittext_kept(self) -> None:
+        result = _tree_actions(
+            '<hierarchy><node class="android.widget.EditText" bounds="[0,0][10,10]"/></hierarchy>'
+        ).ui_tree(compact=True)
+        self.assertEqual(result["count"], 1)
+
+    def test_disabled_button_flagged(self) -> None:
+        result = _tree_actions(
+            '<hierarchy><node text="发送" clickable="true" enabled="false"'
+            ' bounds="[0,0][10,10]"/></hierarchy>'
+        ).ui_tree(compact=True)
+        self.assertIs(result["nodes"][0]["enabled"], False)
+
+    def test_enabled_button_omits_flag(self) -> None:
+        result = _tree_actions(
+            '<hierarchy><node text="发送" clickable="true" enabled="true"'
+            ' bounds="[0,0][10,10]"/></hierarchy>'
+        ).ui_tree(compact=True)
+        self.assertNotIn("enabled", result["nodes"][0])
+
+    def test_non_clickable_switch_kept(self) -> None:
+        # Real-world Switch widgets are often clickable=false (the parent row
+        # takes the click) with no text; they must still appear in the tree.
+        result = _tree_actions(
+            '<hierarchy><node class="android.widget.Switch" clickable="false"'
+            ' checkable="true" checked="false" bounds="[901,959][1038,1085]"/></hierarchy>'
+        ).ui_tree(compact=True)
+        self.assertEqual(result["count"], 1)
+        self.assertIs(result["nodes"][0]["checked"], False)
+
+    def test_checkable_switch_reports_checked(self) -> None:
+        result = _tree_actions(
+            '<hierarchy><node class="android.widget.Switch" clickable="true"'
+            ' checkable="true" checked="true" bounds="[0,0][10,10]"/></hierarchy>'
+        ).ui_tree(compact=True)
+        node = result["nodes"][0]
+        self.assertIs(node["checkable"], True)
+        self.assertIs(node["checked"], True)
+
+    def test_webview_tree_flagged_degraded(self) -> None:
+        result = _tree_actions(
+            "<hierarchy>"
+            '<node class="android.webkit.WebView" clickable="true" bounds="[0,0][1080,2000]"/>'
+            '<node text="a" bounds="[0,0][10,10]"/>'
+            '<node text="b" bounds="[0,0][10,10]"/>'
+            '<node text="c" bounds="[0,0][10,10]"/>'
+            "</hierarchy>"
+        ).ui_tree(compact=True)
+        self.assertIs(result["degraded"], True)
+        self.assertIn("phone_screenshot", result["hint"])
+
+    def test_sparse_tree_flagged_degraded(self) -> None:
+        result = _tree_actions("<hierarchy></hierarchy>").ui_tree(compact=True)
+        self.assertIs(result["degraded"], True)
+
+    def test_empty_dump_retried_once_then_succeeds(self) -> None:
+        agent = MagicMock()
+        agent.is_available.return_value = True
+        agent.ui_tree.side_effect = [
+            ("", "device1"),
+            ('<hierarchy><node text="发送" clickable="true" bounds="[0,0][10,10]"/></hierarchy>', "device1"),
+        ]
+        actions = PhoneActions(agent=agent)
+        with patch("phone_agent.actions.time.sleep"):
+            result = actions.ui_tree(compact=True)
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(agent.ui_tree.call_count, 2)
+
+    def test_persistent_empty_dump_marked_degraded_and_not_cached(self) -> None:
+        agent = MagicMock()
+        agent.is_available.return_value = True
+        agent.ui_tree.return_value = ("", "device1")
+        actions = PhoneActions(agent=agent)
+        with patch("phone_agent.actions.time.sleep"):
+            result = actions.ui_tree(compact=True)
+        self.assertIs(result["parse_error"], True)
+        self.assertIs(result["degraded"], True)
+        self.assertIn("phone_screenshot", result["hint"])
+        # Broken dumps must not be cached: the next call re-dumps.
+        calls_before = agent.ui_tree.call_count
+        with patch("phone_agent.actions.time.sleep"):
+            actions.ui_tree(compact=False)
+        self.assertGreater(agent.ui_tree.call_count, calls_before)
+
+    def test_normal_tree_not_degraded(self) -> None:
+        result = _tree_actions(
+            "<hierarchy>"
+            '<node text="首页" clickable="true" bounds="[0,0][10,10]"/>'
+            '<node text="通讯录" clickable="true" bounds="[0,0][10,10]"/>'
+            '<node text="发现" clickable="true" bounds="[0,0][10,10]"/>'
+            "</hierarchy>"
+        ).ui_tree(compact=True)
+        self.assertNotIn("degraded", result)
+
+
+class NodeCriteriaTests(unittest.TestCase):
+    def test_require_all_rejects_partial_combo(self) -> None:
+        nodes = [
+            {"text": "发送", "content_desc": "", "resource_id": "com.x:id/btn_send", "class": ""}
+        ]
+        self.assertIsNone(
+            _find_node(
+                nodes,
+                NodeCriteria(text="发送", resource_id="btn_wrong", require_all=True),
+            )
+        )
+        self.assertIsNotNone(
+            _find_node(
+                nodes,
+                NodeCriteria(text="发送", resource_id="btn_send", require_all=True),
+            )
+        )
+
+    def test_or_matching_remains_default(self) -> None:
+        nodes = [
+            {"text": "发送", "content_desc": "", "resource_id": "com.x:id/btn_send", "class": ""}
+        ]
+        self.assertIsNotNone(
+            _find_node(nodes, NodeCriteria(text="发送", resource_id="btn_wrong"))
+        )
+
+    def test_exact_match(self) -> None:
+        nodes = [{"text": "发送", "content_desc": "", "resource_id": "", "class": ""}]
+        self.assertIsNone(_find_node(nodes, NodeCriteria(text="发", exact=True)))
+        self.assertIsNotNone(_find_node(nodes, NodeCriteria(text="发送", exact=True)))
+
+    def test_index_picks_nth_match(self) -> None:
+        nodes = [
+            {"text": "设置", "center": [1, 1]},
+            {"text": "设置", "center": [2, 2]},
+        ]
+        criteria = NodeCriteria(text="设置")
+        self.assertEqual(len(_find_nodes(nodes, criteria)), 2)
+        self.assertEqual(_find_node(nodes, criteria, index=1)["center"], [2, 2])
+        self.assertIsNone(_find_node(nodes, criteria, index=2))
+        self.assertIsNone(_find_node(nodes, criteria, index=-1))
+
+    def test_enabled_only_skips_disabled_nodes(self) -> None:
+        nodes = [{"text": "发送", "enabled": False}]
+        self.assertIsNone(_find_node(nodes, NodeCriteria(text="发送")))
+        self.assertIsNotNone(
+            _find_node(nodes, NodeCriteria(text="发送", enabled_only=False))
+        )
+
+    def test_clickable_only(self) -> None:
+        nodes = [{"text": "发送", "clickable": False}]
+        self.assertIsNone(_find_node(nodes, NodeCriteria(text="发送", clickable_only=True)))
+
+
+class ScrollToFindTests(unittest.TestCase):
+    def _actions(self) -> PhoneActions:
+        adb = MagicMock()
+        adb.serial = "device1"
+        adb.screen_size.return_value = (1080, 2400)
+        agent = MagicMock()
+        agent.is_available.return_value = False
+        return PhoneActions(client=adb, agent=agent)
+
+    @staticmethod
+    def _tree(nodes: list[dict]) -> dict:
+        return {"ok": True, "nodes": nodes, "count": len(nodes), "serial": "device1"}
+
+    def test_scroll_to_find_scrolls_until_hit(self) -> None:
+        actions = self._actions()
+        target = {
+            "index": 0,
+            "text": "目标",
+            "content_desc": "",
+            "resource_id": "",
+            "class": "",
+            "clickable": True,
+            "bounds": "[0,0][10,10]",
+            "center": [5, 5],
+        }
+        with patch.object(
+            actions,
+            "ui_tree",
+            side_effect=[self._tree([]), self._tree([]), self._tree([target])],
+        ), patch.object(actions, "swipe") as mock_swipe, patch(
+            "phone_agent.actions.time.sleep"
+        ):
+            result = actions.find_and_tap(text="目标", scroll_to_find=2, timeout_s=5)
+        self.assertTrue(result["ok"])
+        self.assertEqual(mock_swipe.call_count, 2)
+
+    def test_no_scroll_by_default(self) -> None:
+        actions = self._actions()
+        target = {
+            "index": 0,
+            "text": "目标",
+            "content_desc": "",
+            "resource_id": "",
+            "class": "",
+            "clickable": True,
+            "bounds": "[0,0][10,10]",
+            "center": [5, 5],
+        }
+        with patch.object(
+            actions, "ui_tree", side_effect=[self._tree([]), self._tree([target])]
+        ), patch.object(actions, "swipe") as mock_swipe, patch(
+            "phone_agent.actions.time.sleep"
+        ):
+            result = actions.find_and_tap(text="目标", timeout_s=5)
+        self.assertTrue(result["ok"])
+        mock_swipe.assert_not_called()
 
 
 if __name__ == "__main__":

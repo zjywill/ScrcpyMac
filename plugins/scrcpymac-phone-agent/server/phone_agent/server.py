@@ -177,7 +177,11 @@ def phone_current_app() -> str:
 
 @mcp.tool()
 def phone_ui_tree(compact: bool = True) -> str:
-    """Dump the UI accessibility tree as JSON nodes or raw XML."""
+    """Dump the UI accessibility tree as JSON nodes or raw XML.
+    Nodes carry state flags (scrollable, enabled=false, focused, checked...)
+    only when noteworthy. If the result has "degraded": true, the tree is
+    incomplete (WebView/Compose/game) — call phone_screenshot and use vision
+    instead."""
     try:
         return _ok(_get_actions().ui_tree(compact=compact))
     except (AdbError, OSError) as exc:
@@ -190,10 +194,17 @@ def phone_find_and_tap(
     content_desc: str = "",
     resource_id: str = "",
     class_name: str = "",
+    require_all: bool = False,
+    exact: bool = False,
+    index: int = 0,
+    scroll_to_find: int = 0,
     timeout_s: float = 10,
 ) -> str:
     """Find a UI element by visible text, content-desc, resource-id, or class,
-    then tap it. Provide at least one selector."""
+    then tap it. Provide at least one selector. require_all=True demands every
+    given selector to hit (use text + resource_id to disambiguate); exact=True
+    matches whole strings instead of substrings; index=N picks the Nth match;
+    scroll_to_find=N scrolls down up to N times when the element is off-screen."""
     try:
         if not any((text, content_desc, resource_id, class_name)):
             raise AdbError("Provide text, content_desc, resource_id, or class_name")
@@ -203,6 +214,10 @@ def phone_find_and_tap(
                 content_desc=content_desc or None,
                 resource_id=resource_id or None,
                 class_name=class_name or None,
+                require_all=require_all,
+                exact=exact,
+                index=index,
+                scroll_to_find=scroll_to_find,
                 timeout_s=timeout_s,
             )
         )

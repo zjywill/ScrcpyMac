@@ -224,6 +224,13 @@ class PhoneActions:
         output = client.shell(command)
         return {"ok": True, "output": output, "serial": client.serial}
 
+    def _dump_ui_xml(self) -> tuple[str, str]:
+        agent_tree = self._agent_try(self.agent.ui_tree)
+        if agent_tree is not None:
+            return agent_tree
+        client = self._ready()
+        return client.ui_tree_xml(), client.serial
+
     def ui_tree(self, *, compact: bool = True, force_refresh: bool = False) -> dict:
         if not force_refresh and self._ui_tree_cache is not None:
             cached = self._ui_tree_cache
@@ -232,13 +239,12 @@ class PhoneActions:
             if not compact and "xml" in cached:
                 return dict(cached)
 
-        agent_tree = self._agent_try(self.agent.ui_tree)
-        if agent_tree is not None:
-            xml, serial = agent_tree
-        else:
-            client = self._ready()
-            xml = client.ui_tree_xml()
-            serial = client.serial
+        xml, serial = self._dump_ui_xml()
+        if not xml.strip():
+            # uiautomator dump can transiently return nothing right after a
+            # navigation/animation; one quick retry usually recovers it.
+            time.sleep(0.3)
+            xml, serial = self._dump_ui_xml()
         if not compact:
             result = {"ok": True, "xml": xml, "serial": serial}
             self._ui_tree_cache = result
@@ -248,32 +254,100 @@ class PhoneActions:
         try:
             root = ET.fromstring(xml)
             for node in root.iter("node"):
-                text = node.attrib.get("text", "").strip()
-                desc = node.attrib.get("content-desc", "").strip()
-                bounds = node.attrib.get("bounds", "")
-                clickable = node.attrib.get("clickable", "false") == "true"
-                if not (text or desc or clickable):
+                attrib = node.attrib
+                text = attrib.get("text", "").strip()
+                desc = attrib.get("content-desc", "").strip()
+                cls = attrib.get("class", "")
+                clickable = attrib.get("clickable") == "true"
+                scrollable = attrib.get("scrollable") == "true"
+                checkable = attrib.get("checkable") == "true"
+                editable = "EditText" in cls
+                # Keep interactive/semantic nodes, plus scrollable containers,
+                # empty input fields, and switches/checkboxes (a Switch is often
+                # clickable=false because its parent row takes the click).
+                if not (text or desc or clickable or scrollable or editable or checkable):
                     continue
-                center = _bounds_center(bounds)
-                nodes.append(
-                    {
-                        "text": text,
-                        "content_desc": desc,
-                        "resource_id": node.attrib.get("resource-id", ""),
-                        "class": node.attrib.get("class", ""),
-                        "clickable": clickable,
-                        "bounds": bounds,
-                        "center": center,
-                    }
-                )
+                bounds = attrib.get("bounds", "")
+                item = {
+                    "index": len(nodes),
+                    "text": text,
+                    "content_desc": desc,
+                    "resource_id": attrib.get("resource-id", ""),
+                    "class": cls,
+                    "clickable": clickable,
+                    "bounds": bounds,
+                    "center": _bounds_center(bounds),
+                }
+                # Boolean flags are emitted only when noteworthy to keep the
+                # compact tree small; absence means the default state.
+                if scrollable:
+                    item["scrollable"] = True
+                if attrib.get("enabled") == "false":
+                    item["enabled"] = False
+                if attrib.get("password") == "true":
+                    item["password"] = True
+                if attrib.get("focused") == "true":
+                    item["focused"] = True
+                if attrib.get("selected") == "true":
+                    item["selected"] = True
+                if checkable:
+                    item["checkable"] = True
+                    item["checked"] = attrib.get("checked") == "true"
+                nodes.append(item)
         except ET.ParseError:
-            result = {"ok": True, "xml": xml, "serial": serial, "parse_error": True}
-            self._ui_tree_cache = result
-            return result
+            # Never cache a broken dump; the next call should re-dump fresh.
+            self._invalidate_ui_tree_cache()
+            return {
+                "ok": True,
+                "xml": xml,
+                "serial": serial,
+                "parse_error": True,
+                "degraded": True,
+                "hint": (
+                    "UI dump was empty or unparseable. Retry phone_ui_tree or "
+                    "fall back to phone_screenshot for vision."
+                ),
+            }
 
+        has_webview = any("WebView" in n.get("class", "") for n in nodes)
+        # Few interactive nodes usually means WebView/Compose/custom-drawn UI
+        # where the accessibility tree lacks real structure.
+        interactive = sum(1 for n in nodes if n.get("clickable") or n.get("text"))
         result = {"ok": True, "nodes": nodes, "count": len(nodes), "serial": serial}
+        if has_webview or interactive < 3:
+            result["degraded"] = True
+            result["hint"] = (
+                "UI tree looks incomplete (WebView/Compose/custom-drawn). "
+                "Fall back to phone_screenshot for vision."
+            )
         self._ui_tree_cache = result
         return result
+
+    def _screen_size(self) -> Optional[tuple[int, int]]:
+        info = self._agent_try(self.agent.device_info)
+        if info is not None:
+            screen = info.get("screen") or {}
+            width, height = int(screen.get("width", 0)), int(screen.get("height", 0))
+            if width and height:
+                return width, height
+        try:
+            return self._ready().screen_size()
+        except (AdbError, OSError):
+            return None
+
+    def _scroll_once(self, *, direction: str = "up") -> None:
+        """One mid-screen scroll. up = content moves up (reveal what's below)."""
+        size = self._screen_size()
+        if size is None:
+            return
+        width, height = size
+        x = width // 2
+        if direction == "up":
+            y1, y2 = int(height * 0.7), int(height * 0.3)
+        else:
+            y1, y2 = int(height * 0.3), int(height * 0.7)
+        self.swipe(x, y1, x, y2, duration_ms=350)  # swipe invalidates the ui_tree cache
+        time.sleep(0.4)
 
     def _poll_for_node(
         self,
@@ -281,25 +355,37 @@ class PhoneActions:
         *,
         timeout_s: float,
         poll_interval_s: float = 0.4,
+        index: int = 0,
+        scroll_to_find: int = 0,
     ) -> tuple[dict, dict]:
         """Poll the UI tree until a node matching `criteria` appears.
 
         Returns (matched_node, last_tree). Raises AdbError on timeout. This is
         the single wait/backoff mechanism shared by find_and_tap/wait_for_text.
+        With scroll_to_find > 0, scrolls up to that many times while the node
+        is missing (to reach off-screen list items).
         """
         deadline = time.time() + timeout_s
         last_tree: dict[str, Any] = {}
+        scrolls_used = 0
         attempt = 0
         while time.time() < deadline:
             last_tree = self.ui_tree(compact=True, force_refresh=attempt > 0)
-            node = _find_node(last_tree.get("nodes", []), criteria)
+            node = _find_node(last_tree.get("nodes", []), criteria, index=index)
             if node is not None:
                 return node, last_tree
+            if scrolls_used < scroll_to_find:
+                self._scroll_once(direction="up")
+                scrolls_used += 1
+                attempt += 1
+                continue  # re-dump right after scrolling, no backoff
             attempt += 1
             time.sleep(min(poll_interval_s * (1.5 ** max(attempt - 1, 0)), 2.0))
         raise AdbError(
             f"Element not found within {timeout_s}s ({criteria.describe()}). "
-            f"Last tree had {last_tree.get('count', 0)} nodes."
+            f"Last tree had {last_tree.get('count', 0)} nodes"
+            + (f", after {scrolls_used} scroll(s)" if scroll_to_find else "")
+            + "."
         )
 
     def find_and_tap(
@@ -309,17 +395,27 @@ class PhoneActions:
         content_desc: Optional[Any] = None,
         resource_id: Optional[Any] = None,
         class_name: Optional[Any] = None,
+        require_all: bool = False,
+        exact: bool = False,
+        index: int = 0,
         timeout_s: float = 10,
         poll_interval_s: float = 0.4,
+        scroll_to_find: int = 0,
     ) -> dict:
         criteria = NodeCriteria(
             text=text,
             content_desc=content_desc,
             resource_id=resource_id,
             class_name=class_name,
+            require_all=require_all,
+            exact=exact,
         )
         node, _ = self._poll_for_node(
-            criteria, timeout_s=timeout_s, poll_interval_s=poll_interval_s
+            criteria,
+            timeout_s=timeout_s,
+            poll_interval_s=poll_interval_s,
+            index=index,
+            scroll_to_find=scroll_to_find,
         )
         if not node.get("center"):
             raise AdbError(f"Matched node has no tappable bounds ({criteria.describe()})")
@@ -388,10 +484,12 @@ def _as_list(value: Optional[Any]) -> list[str]:
 class NodeCriteria:
     """A UI-node selector supporting multiple attributes and any-of alternatives.
 
-    text / content_desc match by substring; resource_id / class_name match by
-    substring against the node's resource-id / class. Any field may be a single
-    string or a list of alternatives (a node matching *any* alternative wins).
-    This replaces the per-caller bilingual/app-specific match loops.
+    text / content_desc / resource_id / class_name match by substring (or by
+    equality with exact=True). Any field may be a single string or a list of
+    alternatives (a node matching *any* alternative wins). By default a node
+    matching *any* specified attribute matches; require_all=True demands every
+    specified attribute hit (AND), which disambiguates e.g. text + resource_id.
+    Disabled (greyed-out) nodes are skipped unless enabled_only=False.
     """
 
     def __init__(
@@ -401,21 +499,41 @@ class NodeCriteria:
         content_desc: Optional[Any] = None,
         resource_id: Optional[Any] = None,
         class_name: Optional[Any] = None,
+        require_all: bool = False,
+        exact: bool = False,
+        clickable_only: bool = False,
+        enabled_only: bool = True,
     ):
         self.text = _as_list(text)
         self.content_desc = _as_list(content_desc)
         self.resource_id = _as_list(resource_id)
         self.class_name = _as_list(class_name)
+        self.require_all = require_all
+        self.exact = exact
+        self.clickable_only = clickable_only
+        self.enabled_only = enabled_only
         if not any((self.text, self.content_desc, self.resource_id, self.class_name)):
             raise AdbError("NodeCriteria requires at least one attribute")
 
+    def _group(self, needles: list[str], value: Optional[str]) -> Optional[bool]:
+        # Attribute not specified -> None (excluded); specified -> hit or miss.
+        return _any_match(needles, value, exact=self.exact) if needles else None
+
     def matches(self, node: dict) -> bool:
-        return (
-            _any_substring(self.text, node.get("text"))
-            or _any_substring(self.content_desc, node.get("content_desc"))
-            or _any_substring(self.resource_id, node.get("resource_id"))
-            or _any_substring(self.class_name, node.get("class"))
-        )
+        if self.enabled_only and node.get("enabled") is False:
+            return False
+        if self.clickable_only and not node.get("clickable"):
+            return False
+        groups = [
+            self._group(self.text, node.get("text")),
+            self._group(self.content_desc, node.get("content_desc")),
+            self._group(self.resource_id, node.get("resource_id")),
+            self._group(self.class_name, node.get("class")),
+        ]
+        specified = [g for g in groups if g is not None]
+        if not specified:
+            return False
+        return all(specified) if self.require_all else any(specified)
 
     def describe(self) -> str:
         parts = []
@@ -427,21 +545,37 @@ class NodeCriteria:
         ):
             if values:
                 parts.append(f"{name}={values!r}")
+        if self.require_all:
+            parts.append("require_all=True")
+        if self.exact:
+            parts.append("exact=True")
         return ", ".join(parts)
 
 
-def _any_substring(needles: list[str], haystack: Optional[str]) -> bool:
+def _any_match(needles: list[str], haystack: Optional[str], *, exact: bool) -> bool:
     if not needles:
         return False
     text = haystack or ""
+    if exact:
+        return any(needle == text for needle in needles)
     return any(needle and needle in text for needle in needles)
 
 
-def _find_node(nodes: list[dict], criteria: NodeCriteria) -> Optional[dict]:
-    for node in nodes:
-        if criteria.matches(node):
-            return node
-    return None
+def _any_substring(needles: list[str], haystack: Optional[str]) -> bool:
+    return _any_match(needles, haystack, exact=False)
+
+
+def _find_nodes(nodes: list[dict], criteria: NodeCriteria) -> list[dict]:
+    return [node for node in nodes if criteria.matches(node)]
+
+
+def _find_node(
+    nodes: list[dict], criteria: NodeCriteria, index: int = 0
+) -> Optional[dict]:
+    matches = _find_nodes(nodes, criteria)
+    if index < 0 or index >= len(matches):
+        return None
+    return matches[index]
 
 
 def json_result(payload: dict) -> str:
