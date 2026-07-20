@@ -7,7 +7,7 @@ Checklist for publishing **ScrcpyMac Phone Agent** to Cursor and Codex marketpla
 - [ ] Run `./scripts/install.sh` on a clean Mac
 - [ ] `./bin/phone-agent doctor` passes with a real device
 - [ ] Test `phone_screenshot`, `phone_paste`, `phone_send_wechat` in Cursor
-- [ ] Test plugin install via Codex `marketplace add`
+- [ ] Test a clean Codex `marketplace add` + `plugin add` and first-launch MCP bootstrap
 - [ ] Review [PRIVACY.md](./PRIVACY.md)
 - [x] Placeholder screenshots in `assets/screenshots/` (replace with real 1280×800 captures before submit)
 
@@ -31,6 +31,7 @@ ln -sf "$(pwd)" ~/.cursor/plugins/local/scrcpymac-phone-agent
 
 ```bash
 codex plugin marketplace add zjywill/scrcpyMac
+codex plugin add scrcpymac-phone-agent@scrcpymac
 ```
 
 4. For OpenAI curated directory: follow https://developers.openai.com/codex/plugins/build

@@ -374,6 +374,7 @@ struct ContentView: View {
                     .disabled(audioOnly)
                 optionDivider
                 agentServiceRow
+                optionDivider
                 pluginInstallRow
             }
             .background(
@@ -387,35 +388,57 @@ struct ContentView: View {
         Divider().opacity(0.4).padding(.leading, 34)
     }
 
-    private var agentServiceRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle(isOn: $agentServiceEnabled) {
-                HStack(spacing: 8) {
-                    Image(systemName: "antenna.radiowaves.left.and.right")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 18)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Agent service")
-                            .font(.system(size: 12))
-                        Text("Cursor/Codex plugin · :9477")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-            }
-            .toggleStyle(.switch)
-            .disabled(!isConnected)
+    private struct PressableRowStyle: ButtonStyle {
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .opacity(configuration.isPressed ? 0.55 : 1)
+                .scaleEffect(configuration.isPressed ? 0.98 : 1)
+                .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+        }
+    }
 
-            Toggle(isOn: $agentServiceAutoEnable) {
+    private var agentServiceRow: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Agent service")
+                        .font(.system(size: 12))
+                    Text("Cursor/Codex plugin · :9477")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Toggle("", isOn: $agentServiceEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .disabled(!isConnected)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+
+            HStack(spacing: 10) {
                 Text("Auto-enable on Connect")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.leading, 26)
+                Spacer(minLength: 8)
+                Toggle("", isOn: $agentServiceAutoEnable)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
             }
-            .toggleStyle(.switch)
+            .padding(.horizontal, 10)
+            .padding(.bottom, 7)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .contentShape(Rectangle())
     }
 
     private var pluginInstallRow: some View {
@@ -423,28 +446,30 @@ struct ContentView: View {
             Button {
                 Task { await pluginInstaller.install() }
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: 10) {
                     if pluginInstaller.isRunning {
                         ProgressView()
                             .controlSize(.small)
-                            .frame(width: 18)
+                            .frame(width: 16)
                     } else {
                         Image(systemName: "puzzlepiece.extension")
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
-                            .frame(width: 18)
+                            .frame(width: 16)
                     }
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 1) {
                         Text("Install Phone Agent plugin")
                             .font(.system(size: 12))
                         Text("Cursor / Codex · install.sh")
                             .font(.system(size: 9))
                             .foregroundStyle(.tertiary)
+                            .lineLimit(1)
                     }
                     Spacer()
                 }
+                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableRowStyle())
             .disabled(pluginInstaller.isRunning)
 
             if !pluginInstaller.lastMessage.isEmpty {
@@ -452,10 +477,11 @@ struct ContentView: View {
                     .font(.system(size: 9))
                     .foregroundStyle(pluginInstaller.lastSuccess == false ? .red : .secondary)
                     .lineLimit(4)
+                    .padding(.leading, 26)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
     }
 
     private func optionRow(_ title: String, icon: String, isOn: Binding<Bool>) -> some View {

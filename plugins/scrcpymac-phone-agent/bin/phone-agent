@@ -5,37 +5,98 @@ set -euo pipefail
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PHONE_AGENT_ROOT="$PLUGIN_ROOT"
 SERVER_DIR="$PLUGIN_ROOT/server"
+PYTHON_BIN="${PHONE_AGENT_PYTHON:-python3}"
 
-if [[ -z "${ADB_PATH:-}" ]]; then
-  ARCH="$(uname -m)"
-  case "$ARCH" in
-    arm64|aarch64) BUNDLED_ARCH="arm64" ;;
-    x86_64|amd64) BUNDLED_ARCH="x86_64" ;;
-    *) BUNDLED_ARCH="" ;;
+if [[ -z "${PHONE_AGENT_PYTHON:-}" && -x "$PLUGIN_ROOT/.venv/bin/python" ]]; then
+  PYTHON_BIN="$PLUGIN_ROOT/.venv/bin/python"
+fi
+
+select_bundled_adb() {
+  local platform=""
+  local arch=""
+  local candidate=""
+
+  [[ -z "${ADB_PATH:-}" ]] || return 0
+
+  case "$(uname -s)" in
+    Darwin)
+      platform="darwin"
+      case "$(uname -m)" in
+        arm64|aarch64) arch="arm64" ;;
+        x86_64|amd64) arch="x86_64" ;;
+      esac
+      ;;
+    Linux)
+      platform="linux"
+      case "$(uname -m)" in
+        x86_64|amd64) arch="x86_64" ;;
+      esac
+      ;;
   esac
-  if [[ -n "$BUNDLED_ARCH" ]]; then
-    CANDIDATE="$PLUGIN_ROOT/bin/darwin/$BUNDLED_ARCH/adb"
-    if [[ -x "$CANDIDATE" ]]; then
-      export ADB_PATH="$CANDIDATE"
+
+  if [[ -n "$platform" && -n "$arch" ]]; then
+    candidate="$PLUGIN_ROOT/bin/$platform/$arch/adb"
+    if [[ -x "$candidate" ]]; then
+      export ADB_PATH="$candidate"
     fi
   fi
-fi
+}
+
+ensure_adb_for_mcp() {
+  local platform=""
+
+  select_bundled_adb
+  if [[ -n "${ADB_PATH:-}" ]] || command -v adb >/dev/null 2>&1; then
+    return 0
+  fi
+  if [[ "${PHONE_AGENT_AUTO_DOWNLOAD_ADB:-1}" == "0" ]]; then
+    return 0
+  fi
+
+  case "$(uname -s)" in
+    Darwin) platform="darwin" ;;
+    Linux)
+      case "$(uname -m)" in
+        x86_64|amd64) platform="linux" ;;
+      esac
+      ;;
+  esac
+
+  if [[ -n "$platform" ]]; then
+    echo "==> adb not found; downloading bundled platform-tools" >&2
+    if ! "$PLUGIN_ROOT/scripts/download-adb.sh" "$platform" >&2; then
+      echo "WARN: bundled adb download failed; phone tools will report setup guidance" >&2
+    fi
+    select_bundled_adb
+  fi
+}
+
+select_bundled_adb
 
 export PYTHONPATH="$SERVER_DIR${PYTHONPATH:+:$PYTHONPATH}"
 
 cmd="${1:-}"
 case "$cmd" in
   mcp)
-    exec python3 -m phone_agent.server
+    if [[ -z "${PHONE_AGENT_PYTHON:-}" ]]; then
+      "$PLUGIN_ROOT/scripts/ensure-runtime.sh" >&2
+      PYTHON_BIN="$PLUGIN_ROOT/.venv/bin/python"
+    fi
+    ensure_adb_for_mcp
+    exec "$PYTHON_BIN" -m phone_agent.server
     ;;
   doctor)
-    exec python3 -c "from phone_agent.doctor import run_doctor; import json; print(json.dumps(run_doctor(), indent=2, ensure_ascii=False))"
+    if [[ -z "${PHONE_AGENT_PYTHON:-}" ]]; then
+      "$PLUGIN_ROOT/scripts/ensure-runtime.sh" >&2
+      PYTHON_BIN="$PLUGIN_ROOT/.venv/bin/python"
+    fi
+    exec "$PYTHON_BIN" -c "from phone_agent.doctor import run_doctor; import json; print(json.dumps(run_doctor(), indent=2, ensure_ascii=False))"
     ;;
   devices)
-    exec python3 -c "from phone_agent.actions import PhoneActions; import json; print(json.dumps(PhoneActions().devices(), indent=2, ensure_ascii=False))"
+    exec "$PYTHON_BIN" -c "from phone_agent.actions import PhoneActions; import json; print(json.dumps(PhoneActions().devices(), indent=2, ensure_ascii=False))"
     ;;
   version)
-    python3 -c "from phone_agent import __version__; print(f'scrcpymac-phone-agent {__version__}')"
+    "$PYTHON_BIN" -c "from phone_agent import __version__; print(f'scrcpymac-phone-agent {__version__}')"
     ;;
   *)
     echo "ScrcpyMac Phone Agent" >&2

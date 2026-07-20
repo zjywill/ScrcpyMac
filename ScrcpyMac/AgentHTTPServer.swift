@@ -22,7 +22,7 @@ struct AgentHTTPResponse {
         AgentHTTPResponse(status: 200, contentType: "image/png", body: data, extraHeaders: headers)
     }
 
-    static func error(_ status: Int, message: String) -> AgentHTTPResponse {
+    static func error(_ status: Int, _ message: String) -> AgentHTTPResponse {
         .json(status, object: ["ok": false, "error": message])
     }
 }

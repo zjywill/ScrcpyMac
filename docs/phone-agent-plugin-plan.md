@@ -198,7 +198,7 @@ scrcpyMac/
     "source": { "source": "local", "path": "./plugins/scrcpymac-phone-agent" },
     "policy": {
       "installation": "AVAILABLE",
-      "authentication": "NONE"
+      "authentication": "ON_INSTALL"
     },
     "category": "Productivity"
   }]
@@ -220,7 +220,7 @@ Launcher 职责：
 
 1. 检测 OS/arch，设置 `ADB_PATH` 指向 `bin/darwin/${arch}/adb`
 2. 若系统 adb 更新则优先用系统 adb（可配置 `PHONE_AGENT_PREFER_SYSTEM_ADB=1`）
-3. 激活 Python venv 或调用 `uv run` 启动 MCP server
+3. 首次启动时在插件目录创建 `.venv`，后续复用并按依赖指纹更新
 4. 传递 `PHONE_AGENT_SERIAL` 环境变量
 
 ### 4.3 MCP Server Tools
@@ -346,7 +346,7 @@ Workflow（Agent 按 Skill 执行）：
 #### `scripts/install.sh`
 
 - 检测 Python >= 3.10
-- `pip install` 或 `uv sync` 安装 server 依赖
+- 在插件自己的 `.venv` 中安装 server 依赖，不修改系统 Python
 - `chmod +x bin/phone-agent`
 - 运行 `doctor.sh`，输出结果
 - 打印下一步：如何在 Cursor / Codex 中验证

@@ -2,7 +2,6 @@
 set -euo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SERVER_DIR="$PLUGIN_ROOT/server"
 
 echo "==> ScrcpyMac Phone Agent install"
 echo "Plugin root: $PLUGIN_ROOT"
@@ -21,11 +20,7 @@ chmod +x "$PLUGIN_ROOT/bin/phone-agent" "$PLUGIN_ROOT/mcp-server.sh"
 chmod +x "$PLUGIN_ROOT/scripts/"*.sh 2>/dev/null || true
 
 echo "==> Installing server dependencies"
-if command -v uv >/dev/null 2>&1; then
-  (cd "$SERVER_DIR" && uv pip install --system -e .)
-else
-  python3 -m pip install --user -e "$SERVER_DIR"
-fi
+"$PLUGIN_ROOT/scripts/ensure-runtime.sh"
 
 UNAME="$(uname -s)"
 if [[ "$UNAME" == "Darwin" ]]; then

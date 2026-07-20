@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.1 — 2026-07-20
+
+### Fixed
+
+- Codex marketplace manifest now uses the supported `ON_INSTALL` authentication policy
+- First MCP or doctor launch bootstraps dependencies into a plugin-local `.venv`
+- Runtime setup no longer mutates or accidentally targets a different system Python
+- Concurrent first launches share a lock and cannot race while creating the virtual environment
+- Launcher finds bundled adb on both macOS and Linux and downloads it on first MCP use when needed
+- Python package metadata now matches the plugin version
+
 ## 0.5.0 — 2026-07-19
 
 ### Added

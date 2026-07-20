@@ -6,7 +6,7 @@ Control your Android phone from **Cursor**, **Codex**, or **Claude** — one plu
 
 | Component | Description |
 |-----------|-------------|
-| **MCP server** | 21 tools: screenshot, tap, paste, UI tree, Wi-Fi adb, WeChat recipe, … |
+| **MCP server** | 22 tools: screenshot, tap, paste, UI tree, Wi-Fi adb, WeChat recipe, … |
 | **Skills** | `phone-setup`, `wechat`, `android-nav`, `scrcpymac-link` |
 | **Launcher** | `bin/phone-agent` + `mcp-server.sh` |
 | **Scripts** | `install.sh`, `configure.sh`, `download-adb.sh`, `doctor.sh` |
@@ -42,9 +42,15 @@ From the repository root:
 ```bash
 codex plugin marketplace add .
 # or: codex plugin marketplace add zjywill/scrcpyMac
+codex plugin add scrcpymac-phone-agent@scrcpymac
 ```
 
-Open Codex → Plugins → install **ScrcpyMac Phone Agent**.
+Alternatively, open Codex → Plugins and install **ScrcpyMac Phone Agent**.
+
+On the first MCP or `doctor` launch, the plugin creates its own `.venv` and
+installs the Python dependencies there. It does not modify Homebrew, system, or
+Conda Python environments. If adb is not already available, the first MCP
+launch downloads the bundled platform-tools binary.
 
 ### Manual MCP config
 
@@ -129,6 +135,9 @@ Placed at `bin/darwin/adb` (and arch mirrors). See `bin/darwin/README.md`.
 | `ADB_PATH` | Override adb binary |
 | `PHONE_AGENT_SERIAL` | Target device serial |
 | `PHONE_AGENT_ROOT` | Set automatically by launcher |
+| `PHONE_AGENT_PYTHON` | Use an explicitly managed Python instead of the plugin `.venv` |
+| `PHONE_AGENT_BOOTSTRAP_PYTHON` | Base Python used to create the plugin `.venv` |
+| `PHONE_AGENT_AUTO_DOWNLOAD_ADB` | Set to `0` to disable first-launch adb download |
 
 ## Marketplace
 

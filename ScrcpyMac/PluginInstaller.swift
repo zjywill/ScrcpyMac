@@ -103,7 +103,7 @@ final class PluginInstaller: ObservableObject {
         }
     }
 
-    private static func runInstallScript(at script: URL, pluginRoot: URL) throws -> String {
+    private nonisolated static func runInstallScript(at script: URL, pluginRoot: URL) throws -> String {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/bin/bash")
         proc.arguments = [script.path]
