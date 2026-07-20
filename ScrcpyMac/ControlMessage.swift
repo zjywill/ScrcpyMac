@@ -97,7 +97,7 @@ enum ControlMessage {
         action: TouchAction,
         x: Int32, y: Int32,
         screenWidth: UInt16, screenHeight: UInt16,
-        pressure: Float = 1.0,
+        pressure: Float? = nil,
         buttonsPressed: Bool = true
     ) -> Data {
         var d = Data()
@@ -109,7 +109,11 @@ enum ControlMessage {
         d.appendBE(UInt32(bitPattern: y))
         d.appendBE(screenWidth)
         d.appendBE(screenHeight)
-        d.appendBE(u16FixedPoint(pressure))
+        // Match scrcpy's SDK mouse processor: a released pointer has zero
+        // pressure. Keeping pressure at 1 for ACTION_UP can leave apps without
+        // a valid click-release transition.
+        let resolvedPressure = pressure ?? (action == .up ? 0.0 : 1.0)
+        d.appendBE(u16FixedPoint(resolvedPressure))
         // actionButton = primary for DOWN/UP transitions; 0 for MOVE.
         let actionButton: Int32 = (action == .move) ? 0 : buttonPrimary
         d.appendBE(UInt32(bitPattern: actionButton))

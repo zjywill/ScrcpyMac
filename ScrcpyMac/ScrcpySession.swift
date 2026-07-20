@@ -233,13 +233,16 @@ final class ScrcpySession: ObservableObject {
         buttonsPressed: Bool
     ) {
         guard case let .connected(meta) = state else { return }
-        let dx = Int32((Double(p.x) / Double(vs.width)) * Double(meta.width))
-        let dy = Int32((Double(p.y) / Double(vs.height)) * Double(meta.height))
-        let clampedX = max(0, min(Int32(meta.width - 1), dx))
-        let clampedY = max(0, min(Int32(meta.height - 1), dy))
+        guard let point = mapAspectFitPoint(
+            p,
+            viewSize: vs,
+            contentSize: CGSize(width: meta.width, height: meta.height)
+        ) else {
+            return
+        }
         let data = ControlMessage.injectTouch(
             action: action,
-            x: clampedX, y: clampedY,
+            x: point.x, y: point.y,
             screenWidth: UInt16(meta.width), screenHeight: UInt16(meta.height),
             buttonsPressed: buttonsPressed
         )
@@ -249,10 +252,15 @@ final class ScrcpySession: ObservableObject {
     func sendScroll(viewPoint p: CGPoint, viewSize vs: CGSize,
                     hScroll: Float, vScroll: Float) {
         guard case let .connected(meta) = state else { return }
-        let dx = Int32((Double(p.x) / Double(vs.width)) * Double(meta.width))
-        let dy = Int32((Double(p.y) / Double(vs.height)) * Double(meta.height))
+        guard let point = mapAspectFitPoint(
+            p,
+            viewSize: vs,
+            contentSize: CGSize(width: meta.width, height: meta.height)
+        ) else {
+            return
+        }
         let data = ControlMessage.injectScroll(
-            x: dx, y: dy,
+            x: point.x, y: point.y,
             screenWidth: UInt16(meta.width), screenHeight: UInt16(meta.height),
             hScroll: hScroll, vScroll: vScroll
         )
@@ -292,6 +300,42 @@ final class ScrcpySession: ObservableObject {
                 NSLog("[control] send failed: %@", "\(error)")
             }
         })
+    }
+
+    /// Convert a point from an aspect-fit mirror view into native device
+    /// coordinates. Points in the letterbox bars are ignored.
+    private func mapAspectFitPoint(
+        _ point: CGPoint,
+        viewSize: CGSize,
+        contentSize: CGSize
+    ) -> (x: Int32, y: Int32)? {
+        guard viewSize.width > 0, viewSize.height > 0,
+              contentSize.width > 0, contentSize.height > 0 else {
+            return nil
+        }
+
+        let scale = min(
+            viewSize.width / contentSize.width,
+            viewSize.height / contentSize.height
+        )
+        let renderedSize = CGSize(
+            width: contentSize.width * scale,
+            height: contentSize.height * scale
+        )
+        let offsetX = (viewSize.width - renderedSize.width) / 2
+        let offsetY = (viewSize.height - renderedSize.height) / 2
+
+        guard point.x >= offsetX, point.x < offsetX + renderedSize.width,
+              point.y >= offsetY, point.y < offsetY + renderedSize.height else {
+            return nil
+        }
+
+        let deviceX = Int32((point.x - offsetX) / scale)
+        let deviceY = Int32((point.y - offsetY) / scale)
+        return (
+            max(0, min(Int32(contentSize.width - 1), deviceX)),
+            max(0, min(Int32(contentSize.height - 1), deviceY))
+        )
     }
 
     // MARK: - Stages

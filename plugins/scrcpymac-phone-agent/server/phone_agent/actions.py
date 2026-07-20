@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import re
 import shlex
 import time
 import xml.etree.ElementTree as ET
 from typing import Any, Optional
+
+from PIL import Image, ImageChops
 
 from phone_agent.adb import AdbClient, AdbError
 from phone_agent.agent_client import AgentClient
@@ -118,7 +121,7 @@ class PhoneActions:
             "backend": "adb",
         }
 
-    def tap(self, x: int, y: int) -> dict:
+    def _tap_once(self, x: int, y: int) -> dict:
         result = self._agent_try(lambda: self.agent.tap(x, y))
         if result is None:
             client = self._ready()
@@ -126,6 +129,150 @@ class PhoneActions:
             result = {"ok": True, "action": "tap", "x": x, "y": y, "serial": client.serial}
         self._invalidate_ui_tree_cache()
         return result
+
+    def tap(
+        self,
+        x: int,
+        y: int,
+        *,
+        verify: bool = False,
+        retries: int = 2,
+        retry_radius_px: int = 32,
+        settle_s: float = 0.45,
+    ) -> dict:
+        """Tap native device coordinates, optionally verifying a screen change.
+
+        Verification retries around the requested point in a small cross. This
+        compensates for imperfect visual bounding boxes without silently
+        converting between unspecified screenshot coordinate systems.
+        """
+        point = self._clamp_device_point(x, y)
+        if not verify:
+            return self._tap_once(*point)
+
+        retries = max(0, min(int(retries), 4))
+        retry_radius_px = max(1, min(int(retry_radius_px), 96))
+        settle_s = max(0.1, min(float(settle_s), 2.0))
+        try:
+            baseline = self.screenshot()
+        except (AdbError, OSError):
+            result = self._tap_once(*point)
+            result["verification"] = {
+                "requested": True,
+                "available": False,
+                "attempts": 1,
+            }
+            return result
+
+        offsets = [
+            (0, 0),
+            (0, -retry_radius_px),
+            (0, retry_radius_px),
+            (-retry_radius_px, 0),
+            (retry_radius_px, 0),
+        ][: retries + 1]
+        attempts: list[dict[str, Any]] = []
+        last_result: dict[str, Any] = {}
+
+        for dx, dy in offsets:
+            candidate = self._clamp_device_point(point[0] + dx, point[1] + dy)
+            last_result = self._tap_once(*candidate)
+            time.sleep(settle_s)
+            try:
+                after = self.screenshot()
+                change_score = _screenshot_change_score(baseline, after)
+                changed = change_score >= 0.035
+            except (AdbError, OSError):
+                changed = False
+                change_score = 0.0
+                after = {}
+            attempts.append(
+                {
+                    "point": [candidate[0], candidate[1]],
+                    "screen_changed": changed,
+                    "change_score": round(change_score, 4),
+                }
+            )
+            if changed:
+                last_result["verification"] = {
+                    "requested": True,
+                    "available": True,
+                    "verified": True,
+                    "attempts": attempts,
+                    "after_size_bytes": after.get("size_bytes", 0),
+                }
+                return last_result
+
+        last_result["verification"] = {
+            "requested": True,
+            "available": True,
+            "verified": False,
+            "attempts": attempts,
+            "hint": "No screen change detected after tapping the target and nearby points.",
+        }
+        return last_result
+
+    def tap_relative(
+        self,
+        x: float,
+        y: float,
+        *,
+        verify: bool = True,
+        retries: int = 2,
+    ) -> dict:
+        """Tap normalized screenshot coordinates in the inclusive range 0..1."""
+        if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
+            raise AdbError("relative x and y must be between 0 and 1")
+        width, height = self._required_screen_size()
+        device_x = round(x * (width - 1))
+        device_y = round(y * (height - 1))
+        return {
+            "ok": True,
+            "coordinate_space": "relative",
+            "source": [x, y],
+            "device_point": [device_x, device_y],
+            "tap": self.tap(
+                device_x,
+                device_y,
+                verify=verify,
+                retries=retries,
+            ),
+        }
+
+    def tap_image(
+        self,
+        x: int,
+        y: int,
+        image_width: int,
+        image_height: int,
+        *,
+        verify: bool = True,
+        retries: int = 2,
+    ) -> dict:
+        """Map a point from a displayed/resized screenshot into device pixels."""
+        if image_width <= 0 or image_height <= 0:
+            raise AdbError("image_width and image_height must be positive")
+        if not (0 <= x < image_width and 0 <= y < image_height):
+            raise AdbError("image point must be inside image_width x image_height")
+        width, height = self._required_screen_size()
+        device_x = round((x / max(image_width - 1, 1)) * (width - 1))
+        device_y = round((y / max(image_height - 1, 1)) * (height - 1))
+        return {
+            "ok": True,
+            "coordinate_space": "image",
+            "source": {
+                "point": [x, y],
+                "size": [image_width, image_height],
+            },
+            "device_point": [device_x, device_y],
+            "device_size": [width, height],
+            "tap": self.tap(
+                device_x,
+                device_y,
+                verify=verify,
+                retries=retries,
+            ),
+        }
 
     def swipe(
         self,
@@ -335,6 +482,22 @@ class PhoneActions:
         except (AdbError, OSError):
             return None
 
+    def _required_screen_size(self) -> tuple[int, int]:
+        size = self._screen_size()
+        if size is None:
+            raise AdbError("Could not determine the device screen size")
+        return size
+
+    def _clamp_device_point(self, x: int, y: int) -> tuple[int, int]:
+        size = self._screen_size()
+        if size is None:
+            return int(x), int(y)
+        width, height = size
+        return (
+            max(0, min(width - 1, int(x))),
+            max(0, min(height - 1, int(y))),
+        )
+
     def _scroll_once(self, *, direction: str = "up") -> None:
         """One mid-screen scroll. up = content moves up (reveal what's below)."""
         size = self._screen_size()
@@ -401,6 +564,7 @@ class PhoneActions:
         timeout_s: float = 10,
         poll_interval_s: float = 0.4,
         scroll_to_find: int = 0,
+        verify: bool = False,
     ) -> dict:
         criteria = NodeCriteria(
             text=text,
@@ -420,7 +584,11 @@ class PhoneActions:
         if not node.get("center"):
             raise AdbError(f"Matched node has no tappable bounds ({criteria.describe()})")
         x, y = node["center"]
-        return {"ok": True, "matched": node, "tap": self.tap(x, y)}
+        return {
+            "ok": True,
+            "matched": node,
+            "tap": self.tap(x, y, verify=verify),
+        }
 
     def wait_for_text(
         self,
@@ -471,6 +639,29 @@ def _bounds_center(bounds: str) -> Optional[list[int]]:
         return None
     x1, y1, x2, y2 = map(int, match.groups())
     return [(x1 + x2) // 2, (y1 + y2) // 2]
+
+
+def _screenshot_change_score(before: dict, after: dict) -> float:
+    before_png = before.get("png_bytes")
+    after_png = after.get("png_bytes")
+    if not isinstance(before_png, bytes) or not isinstance(after_png, bytes):
+        return 0.0
+    try:
+        with Image.open(io.BytesIO(before_png)) as before_image, Image.open(
+            io.BytesIO(after_png)
+        ) as after_image:
+            sample_size = (72, 128)
+            before_sample = before_image.convert("RGB").resize(sample_size)
+            after_sample = after_image.convert("RGB").resize(sample_size)
+            diff = ImageChops.difference(before_sample, after_sample)
+            changed = sum(
+                1
+                for red, green, blue in diff.getdata()
+                if max(red, green, blue) >= 20
+            )
+            return changed / (sample_size[0] * sample_size[1])
+    except (OSError, ValueError):
+        return 0.0
 
 
 def _as_list(value: Optional[Any]) -> list[str]:

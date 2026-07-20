@@ -23,6 +23,12 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(plugin["policy"]["authentication"], "ON_INSTALL")
 
     def test_versions_match_across_package_metadata(self) -> None:
+        marketplace = json.loads(
+            (REPO_ROOT / ".agents/plugins/marketplace.json").read_text(encoding="utf-8")
+        )
+        marketplace_plugin = next(
+            item for item in marketplace["plugins"] if item["name"] == "scrcpymac-phone-agent"
+        )
         codex_manifest = json.loads(
             (PLUGIN_ROOT / ".codex-plugin/plugin.json").read_text(encoding="utf-8")
         )
@@ -39,6 +45,8 @@ class PackagingTests(unittest.TestCase):
 
         self.assertIsNotNone(init_version)
         versions = {
+            marketplace["metadata"]["version"],
+            marketplace_plugin["version"],
             codex_manifest["version"],
             cursor_manifest["version"],
             pyproject["project"]["version"],
@@ -46,11 +54,16 @@ class PackagingTests(unittest.TestCase):
         }
         self.assertEqual(len(versions), 1)
 
-    def test_mcp_entrypoint_and_runtime_bootstrap_exist(self) -> None:
+    def test_mcp_entrypoint_has_portable_plugin_working_directory(self) -> None:
         mcp_config = json.loads((PLUGIN_ROOT / ".mcp.json").read_text(encoding="utf-8"))
-        command = mcp_config["mcpServers"]["scrcpymac-phone-agent"]["command"]
+        public_mcp_config = json.loads(
+            (PLUGIN_ROOT / "mcp.json").read_text(encoding="utf-8")
+        )
+        server = mcp_config["mcpServers"]["scrcpymac-phone-agent"]
 
-        self.assertEqual(command, "./mcp-server.sh")
+        self.assertEqual(mcp_config, public_mcp_config)
+        self.assertEqual(server["command"], "./mcp-server.sh")
+        self.assertEqual(server["cwd"], ".")
         self.assertTrue((PLUGIN_ROOT / "mcp-server.sh").is_file())
         self.assertTrue((PLUGIN_ROOT / "scripts/ensure-runtime.sh").is_file())
 

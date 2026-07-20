@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.2 — 2026-07-20
+
+### Fixed
+
+- Codex now starts the MCP server from the plugin root instead of the active project directory
+- Packaging tests verify both MCP manifests stay identical and include a portable working directory
+- Touch release events now use zero pressure, matching the scrcpy 3.3.4 control protocol
+- Mirror clicks account for aspect-fit letterboxing instead of mapping across black bars
+- Visual taps can use normalized or resized-image coordinates and verify screen changes with nearby retries
+
 ## 0.5.1 — 2026-07-20
 
 ### Fixed

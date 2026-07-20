@@ -30,7 +30,7 @@ too — in plain language.
 
 **Let an AI agent use your phone**
 
-The bundled **Phone Agent plugin** exposes 21 phone-control tools (screenshot,
+The bundled **Phone Agent plugin** exposes 24 phone-control tools (screenshot,
 tap-by-text, UI tree, app launch, clipboard paste, WeChat recipe, …) over MCP.
 Tell your assistant things like:
 

@@ -150,6 +150,10 @@ class PhoneActionsTests(unittest.TestCase):
     def test_agent_failure_falls_back_to_adb(self) -> None:
         agent = MagicMock()
         agent.is_available.return_value = True
+        agent.device_info.return_value = {
+            "serial": "device1",
+            "screen": {"width": 1080, "height": 2400},
+        }
         agent.tap.side_effect = OSError("agent POST /tap failed (503)")
         adb = MagicMock()
         adb.serial = "device1"
@@ -175,12 +179,113 @@ class PhoneActionsTests(unittest.TestCase):
     def test_adb_client_not_constructed_when_agent_handles_call(self) -> None:
         agent = MagicMock()
         agent.is_available.return_value = True
+        agent.device_info.return_value = {
+            "serial": "device1",
+            "screen": {"width": 1080, "height": 2400},
+        }
         agent.tap.return_value = {"ok": True, "serial": "device1"}
 
         actions = PhoneActions(agent=agent)
         with patch("phone_agent.actions.AdbClient") as adb_cls:
             actions.tap(1, 2)
             adb_cls.assert_not_called()
+
+    def test_tap_image_maps_resized_screenshot_to_device_pixels(self) -> None:
+        agent = MagicMock()
+        agent.is_available.return_value = True
+        agent.device_info.return_value = {
+            "serial": "device1",
+            "screen": {"width": 1080, "height": 2400},
+        }
+        actions = PhoneActions(agent=agent)
+
+        with patch.object(
+            actions,
+            "tap",
+            return_value={"ok": True},
+        ) as mock_tap:
+            result = actions.tap_image(
+                540,
+                1200,
+                1081,
+                2401,
+                verify=True,
+                retries=3,
+            )
+
+        self.assertEqual(result["device_point"], [540, 1200])
+        mock_tap.assert_called_once_with(540, 1200, verify=True, retries=3)
+
+    def test_tap_relative_maps_edges_to_valid_device_pixels(self) -> None:
+        agent = MagicMock()
+        agent.is_available.return_value = True
+        agent.device_info.return_value = {
+            "serial": "device1",
+            "screen": {"width": 1080, "height": 2400},
+        }
+        actions = PhoneActions(agent=agent)
+
+        with patch.object(
+            actions,
+            "tap",
+            return_value={"ok": True},
+        ) as mock_tap:
+            result = actions.tap_relative(1.0, 1.0)
+
+        self.assertEqual(result["device_point"], [1079, 2399])
+        mock_tap.assert_called_once_with(1079, 2399, verify=True, retries=2)
+
+    def test_verified_tap_retries_nearby_until_screen_changes(self) -> None:
+        agent = MagicMock()
+        agent.is_available.return_value = True
+        agent.device_info.return_value = {
+            "serial": "device1",
+            "screen": {"width": 1080, "height": 2400},
+        }
+        actions = PhoneActions(agent=agent)
+        screenshots = [
+            {"png_bytes": b"before", "size_bytes": 6},
+            {"png_bytes": b"before", "size_bytes": 6},
+            {"png_bytes": b"after", "size_bytes": 5},
+        ]
+
+        with patch.object(actions, "screenshot", side_effect=screenshots), patch.object(
+            actions,
+            "_tap_once",
+            side_effect=[
+                {"ok": True, "x": 500, "y": 600},
+                {"ok": True, "x": 500, "y": 568},
+            ],
+        ) as mock_tap, patch(
+            "phone_agent.actions._screenshot_change_score",
+            side_effect=[0.0, 0.2],
+        ), patch(
+            "phone_agent.actions.time.sleep"
+        ):
+            result = actions.tap(500, 600, verify=True, retries=2)
+
+        self.assertEqual(mock_tap.call_count, 2)
+        self.assertTrue(result["verification"]["verified"])
+        self.assertEqual(
+            result["verification"]["attempts"],
+            [
+                {
+                    "point": [500, 600],
+                    "screen_changed": False,
+                    "change_score": 0.0,
+                },
+                {
+                    "point": [500, 568],
+                    "screen_changed": True,
+                    "change_score": 0.2,
+                },
+            ],
+        )
+
+    def test_tap_image_rejects_out_of_bounds_source_point(self) -> None:
+        actions = PhoneActions(agent=MagicMock())
+        with self.assertRaises(Exception):
+            actions.tap_image(100, 20, 100, 100)
 
 
 def _tree_actions(xml: str) -> PhoneActions:

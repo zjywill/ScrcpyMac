@@ -6,7 +6,7 @@ Control your Android phone from **Cursor**, **Codex**, or **Claude** — one plu
 
 | Component | Description |
 |-----------|-------------|
-| **MCP server** | 22 tools: screenshot, tap, paste, UI tree, Wi-Fi adb, WeChat recipe, … |
+| **MCP server** | 24 tools: screenshot, calibrated taps, paste, UI tree, Wi-Fi adb, WeChat recipe, … |
 | **Skills** | `phone-setup`, `wechat`, `android-nav`, `scrcpymac-link` |
 | **Launcher** | `bin/phone-agent` + `mcp-server.sh` |
 | **Scripts** | `install.sh`, `configure.sh`, `download-adb.sh`, `doctor.sh` |
@@ -97,7 +97,9 @@ Or call tools directly: `phone_doctor`, `phone_screenshot`, `phone_send_wechat`.
 | `phone_list_devices` | List adb devices |
 | `phone_device_info` | Screen size + foreground app |
 | `phone_screenshot` | PNG screenshot (+ image for vision) |
-| `phone_tap` | Tap coordinates |
+| `phone_tap` | Tap native device pixels, then verify and retry nearby |
+| `phone_tap_relative` | Tap normalized screenshot coordinates (`0...1`) |
+| `phone_tap_image` | Map coordinates from a displayed/resized screenshot |
 | `phone_swipe` | Swipe gesture |
 | `phone_long_press` | Long press |
 | `phone_key` | back / home / enter / … |

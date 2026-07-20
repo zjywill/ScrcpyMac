@@ -1,6 +1,6 @@
 {
   "name": "scrcpymac-phone-agent",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Android phone control for Codex — bundled skills, adb tools, and WeChat workflows.",
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",

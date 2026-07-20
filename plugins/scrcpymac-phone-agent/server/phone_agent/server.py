@@ -96,10 +96,72 @@ def phone_screenshot(include_image: bool = True):
 
 
 @mcp.tool()
-def phone_tap(x: int, y: int) -> str:
-    """Tap at device pixel coordinates."""
+def phone_tap(
+    x: int,
+    y: int,
+    verify: bool = True,
+    retries: int = 2,
+) -> str:
+    """Tap native device pixels. By default verifies a screen change and retries nearby."""
     try:
-        return _ok(_get_actions().tap(x, y))
+        return _ok(
+            _get_actions().tap(
+                x,
+                y,
+                verify=verify,
+                retries=retries,
+            )
+        )
+    except (AdbError, OSError) as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_tap_relative(
+    x: float,
+    y: float,
+    verify: bool = True,
+    retries: int = 2,
+) -> str:
+    """Tap normalized screenshot coordinates where x and y are between 0 and 1."""
+    try:
+        return _ok(
+            _get_actions().tap_relative(
+                x,
+                y,
+                verify=verify,
+                retries=retries,
+            )
+        )
+    except (AdbError, OSError) as exc:
+        return _err(exc)
+
+
+@mcp.tool()
+def phone_tap_image(
+    x: int,
+    y: int,
+    image_width: int,
+    image_height: int,
+    verify: bool = True,
+    retries: int = 2,
+) -> str:
+    """Tap a point measured on a displayed/resized screenshot.
+
+    Pass the exact width and height of the image coordinate space used to
+    choose x/y. The tool maps it into current native device pixels.
+    """
+    try:
+        return _ok(
+            _get_actions().tap_image(
+                x,
+                y,
+                image_width,
+                image_height,
+                verify=verify,
+                retries=retries,
+            )
+        )
     except (AdbError, OSError) as exc:
         return _err(exc)
 
@@ -199,6 +261,7 @@ def phone_find_and_tap(
     index: int = 0,
     scroll_to_find: int = 0,
     timeout_s: float = 10,
+    verify: bool = True,
 ) -> str:
     """Find a UI element by visible text, content-desc, resource-id, or class,
     then tap it. Provide at least one selector. require_all=True demands every
@@ -219,6 +282,7 @@ def phone_find_and_tap(
                 index=index,
                 scroll_to_find=scroll_to_find,
                 timeout_s=timeout_s,
+                verify=verify,
             )
         )
     except (AdbError, OSError) as exc:

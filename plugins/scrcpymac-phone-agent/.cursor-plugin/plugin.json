@@ -1,6 +1,6 @@
 {
   "name": "scrcpymac-phone-agent",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Control your Android phone from AI — WeChat, apps, screenshots, and UI automation via adb.",
   "author": {
     "name": "ScrcpyMac",
