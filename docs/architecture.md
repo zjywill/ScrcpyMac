@@ -57,3 +57,13 @@ bundled desktop scrcpy binary, no SDL, no ffmpeg. Only the `scrcpy-server.jar`
 - [x] B5 — keyboard input
 - [x] B6 — stop / reconnect hardening, clipboard paste, and minimal raw PCM audio playback
 - [x] B7 — bundle `adb` + `scrcpy-server.jar` + Phone Agent plugin into the `.app` DMG (`scripts/package-dmg.sh`)
+
+## MCP Apps integration (planned)
+
+Phone Agent tools today reach AI hosts over stdio MCP. A follow-on effort embeds
+**interactive preview UIs** in chat via [MCP Apps](https://github.com/modelcontextprotocol/ext-apps)
+(`ui://` resources + sandboxed iframe), bridged to the same Agent Service on
+`127.0.0.1:9477` — not by re-running scrcpy inside the iframe.
+
+See [mcp-apps-scrcpy-integration-plan.md](./mcp-apps-scrcpy-integration-plan.md) for the
+full phased implementation plan (screenshot polling MVP → Agent MJPEG stream → confirm UIs).

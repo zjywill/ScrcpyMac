@@ -678,6 +678,7 @@ Phase 0 ──► Phase 1 ──► Phase 2 ──► Phase 3 ──► Phase 4 
 | 3 | ✅ 完成 | Wi-Fi adb tools、PRIVACY、logo、wechat recipe |
 | 4 | ✅ 文档就绪 | `MARKETPLACE.md` 提交清单，待人工上架 |
 | 5 | ✅ 完成 | ScrcpyMac App Agent Service + 插件 fast path |
+| 6 | 📋 计划中 | MCP Apps 对话内镜像预览 — 见 [mcp-apps-scrcpy-integration-plan.md](./mcp-apps-scrcpy-integration-plan.md) |
 
 代码位置：`plugins/scrcpymac-phone-agent/`
 
