@@ -1,0 +1,177 @@
+[
+  {
+    "text": [
+      "Settings"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "describe": "text=['Settings']"
+  },
+  {
+    "text": [
+      "搜索",
+      "Search"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "describe": "text=['搜索', 'Search']"
+  },
+  {
+    "text": [
+      "it's"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "describe": "text=[\"it's\"]"
+  },
+  {
+    "text": [
+      "say \"hi\""
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "describe": "text=['say \"hi\"']"
+  },
+  {
+    "text": [
+      "it's",
+      "say \"hi\""
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "describe": "text=[\"it's\", 'say \"hi\"']"
+  },
+  {
+    "text": [
+      "tab\there"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "describe": "text=['tab\\there']"
+  },
+  {
+    "text": [
+      "line\nbreak"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "describe": "text=['line\\nbreak']"
+  },
+  {
+    "text": [
+      "back\\slash"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "describe": "text=['back\\\\slash']"
+  },
+  {
+    "text": [
+      "Settings"
+    ],
+    "content_desc": [
+      "More"
+    ],
+    "resource_id": [
+      "id/x"
+    ],
+    "class_name": [
+      "Button"
+    ],
+    "require_all": false,
+    "exact": false,
+    "describe": "text=['Settings'], content_desc=['More'], resource_id=['id/x'], class=['Button']"
+  },
+  {
+    "text": [
+      "Settings"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": true,
+    "exact": false,
+    "describe": "text=['Settings'], require_all=True"
+  },
+  {
+    "text": [
+      "Settings"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": true,
+    "describe": "text=['Settings'], exact=True"
+  },
+  {
+    "text": [
+      "Settings"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": true,
+    "exact": true,
+    "describe": "text=['Settings'], require_all=True, exact=True"
+  },
+  {
+    "text": [],
+    "content_desc": [
+      "a",
+      "b",
+      "c"
+    ],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "describe": "content_desc=['a', 'b', 'c']"
+  },
+  {
+    "text": [],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [
+      "android.widget.Switch"
+    ],
+    "require_all": false,
+    "exact": false,
+    "describe": "class=['android.widget.Switch']"
+  },
+  {
+    "text": [
+      "emoji😀"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "describe": "text=['emoji😀']"
+  }
+]

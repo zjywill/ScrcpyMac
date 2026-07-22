@@ -278,6 +278,10 @@ const PREVIEW_MAX_WIDTH = 540;
 const PREVIEW_QUALITY = 60;
 const PREVIEW_FRAME_INTERVAL_MS = 100;
 const WS_PACKET_HEADER_BYTES = 14;
+// Only shed load in genuine distress. The plugin relay already drops whole GOPs
+// server-side when a client falls behind, so reaching this queue depth means the
+// decoder itself is struggling, not that the transport is bursting.
+const DECODE_QUEUE_LIMIT = 30;
 
 let mcpApp: App | null = null;
 let previewRunning = false;
@@ -293,6 +297,9 @@ let videoDecoder: VideoDecoder | null = null;
 let h264Config: Uint8Array | null = null;
 let lastFrameAt = 0;
 let smoothedFps = 0;
+let awaitingKeyFrame = false;
+let droppedGroups = 0;
+let serverPacketRate = 0;
 let firstFrameResolve: (() => void) | null = null;
 let firstFrameReject: ((reason: Error) => void) | null = null;
 
@@ -410,7 +417,12 @@ function recordRenderedFrame(width: number, height: number, encoding: string): v
   }
   lastFrameAt = now;
   const fpsLabel = smoothedFps > 0 ? `${smoothedFps.toFixed(1)} FPS` : "Starting";
-  frameMeta.textContent = `${width}×${height} · ${encoding} · ${fpsLabel}`;
+  // Render rate and source rate are shown side by side on purpose: when they
+  // diverge, the gap says immediately whether frames are being lost upstream of
+  // the decoder or inside it.
+  const sourceLabel = serverPacketRate > 0 ? ` · src ${serverPacketRate.toFixed(1)} pkt/s` : "";
+  const dropLabel = droppedGroups > 0 ? ` · ${droppedGroups} GOP dropped` : "";
+  frameMeta.textContent = `${width}×${height} · ${encoding} · ${fpsLabel}${sourceLabel}${dropLabel}`;
 }
 
 function showCanvas(): void {
@@ -436,11 +448,14 @@ function hideSurfaces(): void {
 function resetFrameStats(): void {
   lastFrameAt = 0;
   smoothedFps = 0;
+  droppedGroups = 0;
+  serverPacketRate = 0;
   frameMeta.textContent = "";
 }
 
 function closeDecoder(): void {
   h264Config = null;
+  awaitingKeyFrame = false;
   if (videoDecoder) {
     try {
       videoDecoder.close();
@@ -570,7 +585,19 @@ function decodePacket(packet: WsPacket): void {
     return;
   }
   if (!videoDecoder || videoDecoder.state !== "configured" || !h264Config) return;
-  if (videoDecoder.decodeQueueSize > 4 && !packet.isKeyFrame) return;
+  // Backpressure must never break the GOP. Discarding one delta frame orphans
+  // every later frame that references it, so the picture stays corrupt — or the
+  // decoder errors out into the JPEG fallback — until the next keyframe, which
+  // scrcpy only emits every few seconds. Skip whole groups and resync instead.
+  if (packet.isKeyFrame) {
+    awaitingKeyFrame = false;
+  } else if (awaitingKeyFrame) {
+    return;
+  } else if (videoDecoder.decodeQueueSize > DECODE_QUEUE_LIMIT) {
+    awaitingKeyFrame = true;
+    droppedGroups += 1;
+    return;
+  }
   const payload = packet.isKeyFrame ? concatBytes(h264Config, packet.payload) : packet.payload;
   videoDecoder.decode(
     new EncodedVideoChunk({
@@ -583,9 +610,13 @@ function decodePacket(packet: WsPacket): void {
 
 function applyStreamStatus(status: StreamStatus): void {
   renderBackend(status.backend);
-  if (status.frameWidth && status.frameHeight) {
+  serverPacketRate = status.fps ?? 0;
+  // Only own the label until the decoder produces its first frame. Overwriting a
+  // measured render rate with the server's packet rate is what made the earlier
+  // ~1 FPS stall impossible to localise from the UI.
+  if (status.frameWidth && status.frameHeight && lastFrameAt === 0) {
     frameMeta.textContent =
-      `${status.frameWidth}×${status.frameHeight} · ${status.encoding} · ${status.fps ?? 0} FPS`;
+      `${status.frameWidth}×${status.frameHeight} · ${status.encoding} · src ${serverPacketRate.toFixed(1)} pkt/s`;
   }
 }
 

@@ -74,11 +74,63 @@ ensure_plugin_runtime() {
   fi
 }
 
+# Locate the compiled Go server, if this install has one. Built by
+# scripts/build-go.sh into bin/<platform>/<arch>/phone-agent.
+GO_BINARY=""
+select_go_binary() {
+  local platform="" arch="" candidate=""
+
+  if [[ -n "${PHONE_AGENT_BINARY:-}" ]]; then
+    [[ -x "$PHONE_AGENT_BINARY" ]] || return 1
+    GO_BINARY="$PHONE_AGENT_BINARY"
+    return 0
+  fi
+
+  case "$(uname -s)" in
+    Darwin) platform="darwin" ;;
+    Linux) platform="linux" ;;
+    *) return 1 ;;
+  esac
+  case "$(uname -m)" in
+    arm64|aarch64) arch="arm64" ;;
+    x86_64|amd64) arch="x86_64" ;;
+    *) return 1 ;;
+  esac
+
+  candidate="$PLUGIN_ROOT/bin/$platform/$arch/phone-agent"
+  [[ -x "$candidate" ]] || return 1
+  GO_BINARY="$candidate"
+}
+
 select_bundled_adb
+
+# Backend selection: auto (Go when built, else Python), or force one.
+# The Go server is a drop-in replacement for the Python one; keeping both
+# selectable makes A/B comparison and rollback a single env var.
+backend="${PHONE_AGENT_BACKEND:-auto}"
+cmd="${1:-}"
+
+case "$backend" in
+  go|auto)
+    if select_go_binary; then
+      [[ "$cmd" == "mcp" ]] && ensure_adb_for_mcp
+      exec "$GO_BINARY" "$@"
+    fi
+    if [[ "$backend" == "go" ]]; then
+      echo "ERROR: PHONE_AGENT_BACKEND=go but no Go binary found." >&2
+      echo "       Build one with: $PLUGIN_ROOT/scripts/build-go.sh" >&2
+      exit 1
+    fi
+    ;;
+  python) ;;
+  *)
+    echo "ERROR: PHONE_AGENT_BACKEND must be auto, go, or python (got '$backend')" >&2
+    exit 1
+    ;;
+esac
 
 export PYTHONPATH="$SERVER_DIR${PYTHONPATH:+:$PYTHONPATH}"
 
-cmd="${1:-}"
 case "$cmd" in
   mcp)
     ensure_plugin_runtime

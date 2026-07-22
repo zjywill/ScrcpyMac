@@ -1,0 +1,372 @@
+{
+  "ok": true,
+  "nodes": [
+    {
+      "index": 0,
+      "text": "",
+      "content_desc": "设置",
+      "resource_id": "com.android.settings:id/toolbar_layout",
+      "class": "android.widget.FrameLayout",
+      "clickable": false,
+      "bounds": "[0,80][1080,302]",
+      "center": [
+        540,
+        191
+      ]
+    },
+    {
+      "index": 1,
+      "text": "",
+      "content_desc": "搜索设置",
+      "resource_id": "com.android.settings:id/action_search",
+      "class": "android.widget.TextView",
+      "clickable": true,
+      "bounds": "[921,140][1056,266]",
+      "center": [
+        988,
+        203
+      ]
+    },
+    {
+      "index": 2,
+      "text": "设置",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[60,164][168,237]",
+      "center": [
+        114,
+        200
+      ]
+    },
+    {
+      "index": 3,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "com.android.settings:id/main_content_scrollable_container",
+      "class": "android.widget.ScrollView",
+      "clickable": false,
+      "bounds": "[0,302][1080,2153]",
+      "center": [
+        540,
+        1227
+      ],
+      "scrollable": true
+    },
+    {
+      "index": 4,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.LinearLayout",
+      "clickable": true,
+      "bounds": "[48,302][1032,500]",
+      "center": [
+        540,
+        401
+      ]
+    },
+    {
+      "index": 5,
+      "text": "云服务",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[265,326][409,391]",
+      "center": [
+        337,
+        358
+      ]
+    },
+    {
+      "index": 6,
+      "text": "与云端同步数据",
+      "content_desc": "",
+      "resource_id": "android:id/summary",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[265,397][538,450]",
+      "center": [
+        401,
+        423
+      ]
+    },
+    {
+      "index": 7,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.LinearLayout",
+      "clickable": true,
+      "bounds": "[48,500][1032,717]",
+      "center": [
+        540,
+        608
+      ]
+    },
+    {
+      "index": 8,
+      "text": "帐号",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[265,543][361,608]",
+      "center": [
+        313,
+        575
+      ]
+    },
+    {
+      "index": 9,
+      "text": "一加帐号、其他帐号",
+      "content_desc": "",
+      "resource_id": "android:id/summary",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[265,614][616,667]",
+      "center": [
+        440,
+        640
+      ]
+    },
+    {
+      "index": 10,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.LinearLayout",
+      "clickable": true,
+      "bounds": "[0,717][1080,913]",
+      "center": [
+        540,
+        815
+      ]
+    },
+    {
+      "index": 11,
+      "text": "数字健康与家长控制",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[207,753][639,818]",
+      "center": [
+        423,
+        785
+      ]
+    },
+    {
+      "index": 12,
+      "text": "屏幕使用时间、应用定时器、睡眠时间表",
+      "content_desc": "",
+      "resource_id": "android:id/summary",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[207,821][909,874]",
+      "center": [
+        558,
+        847
+      ]
+    },
+    {
+      "index": 13,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.LinearLayout",
+      "clickable": true,
+      "bounds": "[48,913][1032,1148]",
+      "center": [
+        540,
+        1030
+      ]
+    },
+    {
+      "index": 14,
+      "text": "Google",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[264,956][415,1021]",
+      "center": [
+        339,
+        988
+      ]
+    },
+    {
+      "index": 15,
+      "text": "服务和偏好设置",
+      "content_desc": "",
+      "resource_id": "android:id/summary",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[264,1027][537,1080]",
+      "center": [
+        400,
+        1053
+      ]
+    },
+    {
+      "index": 16,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.LinearLayout",
+      "clickable": true,
+      "bounds": "[48,1208][1032,1443]",
+      "center": [
+        540,
+        1325
+      ]
+    },
+    {
+      "index": 17,
+      "text": "工具箱",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[265,1269][409,1334]",
+      "center": [
+        337,
+        1301
+      ]
+    },
+    {
+      "index": 18,
+      "text": "应用锁、应用双开",
+      "content_desc": "",
+      "resource_id": "android:id/summary",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[265,1340][577,1393]",
+      "center": [
+        421,
+        1366
+      ]
+    },
+    {
+      "index": 19,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.LinearLayout",
+      "clickable": true,
+      "bounds": "[48,1443][1032,1660]",
+      "center": [
+        540,
+        1551
+      ]
+    },
+    {
+      "index": 20,
+      "text": "系统",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[265,1486][361,1551]",
+      "center": [
+        313,
+        1518
+      ]
+    },
+    {
+      "index": 21,
+      "text": "语言和输入法、时间、重置、系统更新",
+      "content_desc": "",
+      "resource_id": "android:id/summary",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[265,1557][928,1610]",
+      "center": [
+        596,
+        1583
+      ]
+    },
+    {
+      "index": 22,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.LinearLayout",
+      "clickable": true,
+      "bounds": "[48,1660][1032,1877]",
+      "center": [
+        540,
+        1768
+      ]
+    },
+    {
+      "index": 23,
+      "text": "关于手机",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[265,1703][457,1768]",
+      "center": [
+        361,
+        1735
+      ]
+    },
+    {
+      "index": 24,
+      "text": "OnePlus 6",
+      "content_desc": "",
+      "resource_id": "android:id/summary",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[265,1774][443,1827]",
+      "center": [
+        354,
+        1800
+      ]
+    },
+    {
+      "index": 25,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.LinearLayout",
+      "clickable": true,
+      "bounds": "[48,1877][1032,2112]",
+      "center": [
+        540,
+        1994
+      ]
+    },
+    {
+      "index": 26,
+      "text": "提示和帮助",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[264,1920][504,1985]",
+      "center": [
+        384,
+        1952
+      ]
+    },
+    {
+      "index": 27,
+      "text": "快速上手、使用帮助、常见问题",
+      "content_desc": "",
+      "resource_id": "android:id/summary",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[264,1991][810,2044]",
+      "center": [
+        537,
+        2017
+      ]
+    }
+  ],
+  "count": 28,
+  "serial": "2f019965"
+}
