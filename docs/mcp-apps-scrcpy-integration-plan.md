@@ -1,9 +1,13 @@
 # MCP Apps + ScrcpyMac 镜像集成实施方案
 
-> 版本：1.0  
+> 版本：1.1  
 > 日期：2026-07-22  
-> 状态：待实施  
+> 状态：待实施（Phase B 需先完成 §3.5 Spike 验证）  
 > 前置：Phone Agent 插件 v0.5.x、ScrcpyMac Agent Service（Phase 5 已完成）
+
+> **v1.1 变更**：基于对 `mcp` SDK 实际源码、`@modelcontextprotocol/ext-apps` API、浏览器 Local
+> Network Access 限制的核实，修正了 §3.2 Python SDK 选型说明、§A.3 API 示例、并在 Phase B 前新增
+> §3.5 Spike 验证步骤。详见文末「附录 D：v1.0 审查记录」。
 
 ---
 
@@ -87,8 +91,13 @@
 | 阶段 | 范围 | 依赖 | 预估改动量 |
 |------|------|------|------------|
 | **A** | 截图轮询 + 可点击 canvas MCP App | 现有 Agent `/screenshot` + `/tap` | 插件侧 ~400 行 TS/HTML + manifest |
-| **B** | Agent MJPEG 流 + iframe 直连 | Phase A + Swift Agent 新端点 | Swift ~150 行 + UI ~80 行 |
+| **B.0** | Spike：验证宿主 LNA 放行情况 | 无仓库改动 | 0，纯验证 |
+| **B** | Agent MJPEG 流 + iframe 直连（仅当 B.0 通过） | Phase A + `AgentHTTPServer` **连接模型改造** | Swift：`AgentHTTPResponse` 从单块 `Data` 改为可流式写入的类型 + streaming 生命周期接入 `ScrcpySession`，属于小型连接层重构，非"加一个 case"；加 UI ~80 行 |
 | **C** | 多面板、确认 UI、App 深链 | Phase A/B | 按需迭代 |
+
+> **v1.1 修正**：Phase B 的工作量此前被低估为"Swift ~150 行"。实际上 `AgentHTTPServer`
+> 当前是一次性请求-响应模型（收完整请求 → 调 handler → 写完整响应 → `connection.cancel()`），
+> 详见 §B.1 后的架构说明；MJPEG 需要长连接流式写入，是连接处理模型的改造，不是简单新增端点。
 
 ---
 
@@ -152,6 +161,28 @@ def phone_screenshot(include_image: bool = True):
 
 可选关联：`phone_device_info`、`phone_doctor` → `ui://scrcpymac/device-status`。
 
+> **⚠️ SDK 选型说明（v1.1 修正）**：本插件当前依赖 `mcp>=1.0.0`，`server.py` 中
+> `from mcp.server.fastmcp import FastMCP` 引入的是官方 `mcp` 包内**冻结的 FastMCP 1.0**，
+> 与网上文档/示例常引用的独立 `fastmcp` 包（`pip install fastmcp`，PrefectHQ/jlowin 维护，
+> 现为完全不同的活跃项目，提供 `@mcp.tool(ui=ToolUI(...))` 等便捷 API）**不是同一套代码**。
+> 实测 `mcp==1.28.1`：`FastMCP.tool()` / `.resource()` 均有通用 `meta: dict[str, Any]`
+> 参数（`.resource()` 还有显式 `mime_type` 参数），且 `Tool.meta` 字段确实以 `alias="_meta"`
+> 声明——**理论上可以手工拼 `meta={"ui": {...}}` 沿用现有依赖**，但没有自动
+> `ui://` MIME 默认值、没有 `ctx.client_supports_extension()`、也没有对
+> `io.modelcontextprotocol/ui` 扩展能力的自动协商声明（这些便捷能力只在独立 `fastmcp`
+> 包里，对应 `PrefectHQ/fastmcp` PR #3009）。
+>
+> 实施前需二选一并在 Phase A 任务里显式排期：
+> 1. **保留官方 `mcp` 包**：手工在 `get_capabilities()` / 低层 `Server` 上补
+>    `experimental_capabilities={"io.modelcontextprotocol/ui": {}}`，并手工验证
+>    `model_dump(by_alias=True)` 输出的 wire JSON 确实带 `_meta`（不同 pydantic 版本
+>    行为可能有差异，需要写一个序列化单测直接断言 JSON-RPC payload）。
+> 2. **迁移到独立 `fastmcp` 包**：改动集中在 import 路径（官方迁移指南称多数场景是
+>    "single import change"），换来 `ui=ToolUI(...)` 等官方支持的便捷 API，但需要为现有
+>    24 个 tools 跑一次完整回归（`server/tests/`），避免行为差异引入的隐性 bug。
+>
+> 建议：Phase A 落地时先选路线 1（改动面最小），只有确认能力协商/MIME 细节踩坑较多时再评估路线 2。
+
 ### A.3 View 实现要点（`mirror.ts`）
 
 使用 `@modelcontextprotocol/ext-apps` 的 `App` 类：
@@ -166,14 +197,17 @@ app.oninit = async () => {
   const ctx = canvas.getContext("2d")!;
 
   // 1. 启动时拉 device_info（经 host 调 tool）
-  const info = await app.callTool("phone_device_info", {});
+  const info = await app.callServerTool({ name: "phone_device_info", arguments: {} });
   const { width, height } = info.screen;
   canvas.width = width;
   canvas.height = height;
 
   // 2. 轮询截图（300–500ms，约 2–3 fps）
   setInterval(async () => {
-    const shot = await app.callTool("phone_screenshot", { include_image: true });
+    const shot = await app.callServerTool({
+      name: "phone_screenshot",
+      arguments: { include_image: true },
+    });
     if (shot.image) drawBase64PNG(ctx, shot.image);
   }, 400);
 
@@ -184,10 +218,16 @@ app.oninit = async () => {
     const scaleY = height / rect.height;
     const x = Math.round((e.clientX - rect.left) * scaleX);
     const y = Math.round((e.clientY - rect.top) * scaleY);
-    await app.callTool("phone_tap", { x, y });
+    await app.callServerTool({ name: "phone_tap", arguments: { x, y } });
   };
 };
 ```
+
+> **⚠️ API 修正（v1.1）**：`@modelcontextprotocol/ext-apps` 的 `App` 类没有 `callTool()`
+> 方法，正确方法是 **`callServerTool({ name, arguments })`**，返回 `CallToolResult`
+> （`.content` / `.structuredContent` / `.isError`）。上面 `phone_screenshot` 的调用同理
+> 应写作 `app.callServerTool({ name: "phone_screenshot", arguments: { include_image: true } })`。
+> 实施时以 `src/app.ts`（`modelcontextprotocol/ext-apps` 仓库）里的真实签名为准，不要照抄旧草稿。
 
 **坐标映射**：复用现有 `phone_tap_relative` / `phone_tap_image` 的 aspect-fit 逻辑；canvas 若 letterbox 显示，需在 JS 中扣除黑边（与 `MirrorView.swift` 一致）。
 
@@ -210,7 +250,9 @@ CI（`.github/workflows/ci.yml`）增加：
 
 ### A.5 Phase A 验收
 
-- [ ] Claude Desktop（或 ext-apps 示例 host）安装插件后，调用 `phone_screenshot` 出现 iframe 预览
+- [ ] 在**已确认支持 MCP Apps 的宿主**（Claude Desktop，或 `@modelcontextprotocol/ext-apps`
+      官方 sample host / MCP Inspector）安装插件后，调用 `phone_screenshot` 出现 iframe 预览
+      —— Cursor/Codex 的支持现状未经验证，不作为首个验证目标
 - [ ] iframe 内点击能触发 `phone_tap`，设备响应正确
 - [ ] Agent 未运行时，预览仍可用（adb 截图，帧率略低）
 - [ ] 不支持 MCP Apps 的宿主调用 `phone_screenshot` 行为与现版一致（仅 PNG + JSON）
@@ -221,6 +263,38 @@ CI（`.github/workflows/ci.yml`）增加：
 ## Phase B — Agent MJPEG 流（流畅预览）
 
 **动机**：轮询 PNG 仅 2–3 fps；Agent 已从 H264 解码器取帧，增加 **multipart MJPEG** 即可在 iframe 内接近实时镜像。
+
+### B.0 先做 Spike：验证宿主是否放行 iframe 访问 localhost（v1.1 新增，阻塞性前置步骤）
+
+**这是 Phase B 立项前必须先跑通的一步，否则后面的 Swift 工作可能全部白做。**
+
+**背景**：Chrome 147+（及基于新版 Chromium 的 Electron 应用——多数现代桌面 AI 客户端属于此列）
+对 iframe 访问 loopback/私有网络地址启用了 **Local Network Access（LNA）** 限制。嵌套 iframe
+（MCP App View 正是嵌套 iframe）要访问 `127.0.0.1`，**必须由父 frame 显式声明
+`allow="loopback-network"`（或 `allow="local-network-access"`）权限委托** ——这与 MCP 资源里
+声明的 `_meta.ui.csp.connectDomains` 是两套独立机制：CSP 决定"服务器允许 App 连什么"，
+LNA 决定"浏览器允许 iframe 连什么"，**两者都要放行才能连通**。
+
+`allow` 属性由**宿主（Claude Desktop / Cursor / Codex）渲染 iframe 时决定**，插件侧的
+MCP 资源声明无法控制它。目前没有已知证据表明任何 MCP Apps 宿主会给 View iframe 委托
+loopback 权限。
+
+**Spike 步骤**（预计 0.5–1 天，不涉及任何仓库改动）：
+
+1. 用 MCP Inspector 或 `@modelcontextprotocol/ext-apps` 官方 quickstart 起一个最小 UI resource，
+   内嵌一行 `fetch("http://127.0.0.1:<临时端口>/ping")`。
+2. 在目标宿主（优先 Claude Desktop，其次任何已知支持 MCP Apps 的 host）里触发该 UI。
+3. 观察浏览器 / Electron devtools 是否报 `net::ERR_BLOCKED_BY_PRIVATE_NETWORK_ACCESS_CHECK`
+   或类似 LNA 拦截日志。
+
+**分支决策**：
+
+| Spike 结果 | 后续动作 |
+|------------|----------|
+| 放行，能连通 localhost | 按下文 B.1–B.2 正常推进 Swift MJPEG 实现 |
+| 被拦截，且宿主未提供绕过方式 | **砍掉 Phase B 的直连方案**，改为：(a) 继续用 Phase A 轮询但把间隔调短、或 (b) MCP App 内放一个"在 ScrcpyMac.app 中查看实时镜像"的按钮/深链（见 Phase C.3），把连续视频的诉求交还给原生 App 窗口 |
+
+不要在 Spike 之前投入 §B.1 的 Swift 改动。
 
 ### B.1 Agent Service 新端点
 
@@ -250,10 +324,20 @@ private static func mjpegStream(session: ScrcpySession?) async -> AgentHTTPRespo
 }
 ```
 
-**注意**：`AgentHTTPServer` 当前为 request/response 短连接；MJPEG 需：
+**注意（v1.1 详细化）**：读过 `AgentHTTPServer.swift` 现有实现后确认，这不是"加一个 case"级别的改动：
 
-- 保持 connection 不 `Connection: close`，或
-- 单独 `NWConnection` 处理 streaming（推荐在 `AgentHTTPServer` 增加 `streamHandler` 分支）
+- `receive()` 把整条请求攒进内存后才调用 `handler`；`send()` 写完整个响应体后，在
+  `NWConnection.send` 的 completion closure 里**直接 `connection.cancel()`**——即当前架构里
+  "一次 handler 调用 = 一次完整响应 = 连接关闭"是硬编码的。
+- MJPEG 需要"一次 handler 调用 = header 写一次 + body 持续追加，直到客户端断开或 Agent 停止"，
+  这是完全不同的生命周期。改造点至少包括：
+  1. 新增一个 streaming 专用响应类型（区别于现在单块 `Data` 的 `AgentHTTPResponse`），或让
+     `handler` 签名支持"拿到 `NWConnection` 自己写"而不是返回一个值。
+  2. `send()` 不能对 streaming 连接调用 `cancel()`；需要新的循环：写一帧 → 等 completion →
+     检查 stop 信号 → 写下一帧。
+  3. 停止信号要接入 `AgentService.stop()` / `session?.setAgentCaptureEnabled(false)`，
+     确保 App 侧关闭 Agent 或断开设备时，streaming 循环能干净退出，不留悬挂连接。
+  4. 需要限流（比如 15–24 fps 循环里 `try await Task.sleep`），避免无限抢占 `queue`。
 
 **性能**：JPEG 编码在后台队列，与 `captureDecoderFramePNG()` 共用 `latestCIImage` 缓存，避免重复解码。
 
@@ -266,7 +350,7 @@ const agentAvailable = await fetch("http://127.0.0.1:9477/health").then(r => r.o
 if (agentAvailable) {
   // <img src="http://127.0.0.1:9477/stream.mjpeg"> 或 fetch + blob URL
   img.src = "http://127.0.0.1:9477/stream.mjpeg";
-  img.onclick = mapClickToTap;  // 仍走 app.callTool("phone_tap")
+  img.onclick = mapClickToTap;  // 仍走 app.callServerTool({ name: "phone_tap", arguments })
 } else {
   startPollingScreenshots();    // Phase A 降级
 }
@@ -294,6 +378,7 @@ if (agentAvailable) {
 
 ### B.4 Phase B 验收
 
+- [ ] **§B.0 Spike 已通过**（目标宿主确认放行 iframe → localhost），否则本阶段不应开工
 - [ ] ScrcpyMac 连接设备 + Agent 开启时，iframe 内 MJPEG ≥ 15 fps（1080p 设备）
 - [ ] 点击 MJPEG 画面坐标正确映射到 `phone_tap`
 - [ ] Agent 关闭后 UI 自动降级 Phase A 轮询
@@ -362,7 +447,7 @@ if (agentAvailable) {
 | 域名 | 用途 | 阶段 |
 |------|------|------|
 | `http://127.0.0.1:9477` | MJPEG / health | B |
-| （无） | Phase A 仅经 host callTool，无额外 connect | A |
+| （无） | Phase A 仅经 host `callServerTool`，无额外 connect | A |
 
 ### 5.3 隐私
 
@@ -423,11 +508,11 @@ if (agentAvailable) {
 
 | 风险 | 影响 | 缓解 |
 |------|------|------|
-| FastMCP 对 `_meta.ui` 支持不完整 | UI 无法注册 | 降级手写 MCP resource handler；参考 ext-apps Python 示例 |
-| iframe localhost CSP 被宿主拒绝 | Phase B 不可用 | Phase A 纯 tool 轮询仍可用 |
-| MJPEG 长连接阻塞 Agent | 其他 API 变慢 | 独立 connection handler；限流 fps |
+| 官方 `mcp` 包（FastMCP 1.0）无 `io.modelcontextprotocol/ui` 能力协商/MIME 默认 | UI resource 注册不完全合规 | 手工补 `experimental_capabilities` + `mime_type`；写序列化单测验证 `_meta` wire 格式；必要时评估迁移到独立 `fastmcp` 包（见 §3.2 说明） |
+| **iframe Local Network Access（LNA）拦截 localhost 请求**（高概率，Chrome 147+ / 新版 Chromium Electron 默认行为） | **Phase B 直连方案可能完全不可行**，与 Swift 实现质量无关 | **先做 §B.0 Spike**，不通过就砍掉直连方案，改走 Phase A 轮询或 App 深链 |
+| `AgentHTTPServer` 连接模型改造引入的稳定性风险（长连接不清理、streaming 阻塞其他 API） | Agent 服务不稳定 | 独立 streaming 生命周期 + 停止信号；加 60s soak 测试（见 §7.2 B-2） |
 | 坐标 letterbox 映射错误 | 点击偏移 | 复用 `phone_tap_image` 算法；加 E2E 测试 |
-| 各宿主 MCP Apps 支持不一 | 体验不一致 | 文档标明；保持 text fallback |
+| 各宿主 MCP Apps 支持不一（Cursor/Codex 现状未经验证） | 体验不一致，甚至 Phase A 都可能无法渲染 | Phase A 先在**已知支持**的宿主（Claude Desktop / ext-apps 官方 sample host / MCP Inspector）验证，再扩展到 Cursor/Codex；保持 text fallback |
 
 ---
 
@@ -497,10 +582,32 @@ GET /stream.mjpeg
 | 资源 | URL |
 |------|-----|
 | MCP Apps 规范 | https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx |
-| ext-apps SDK | https://www.npmjs.com/package/@modelcontextprotocol/ext-apps |
+| ext-apps SDK（`App` 类真实签名） | https://github.com/modelcontextprotocol/ext-apps/blob/main/src/app.ts |
+| ext-apps CSP/CORS 文档 | https://github.com/modelcontextprotocol/ext-apps/blob/main/docs/csp-cors.md |
+| 独立 fastmcp（PrefectHQ）MCP Apps 支持 PR | https://github.com/PrefectHQ/fastmcp/pull/3009 |
+| Chrome Local Network Access 说明（LNA 拦截 iframe 案例） | https://github.com/webflow/mcp-server/issues/124 |
 | 现有 Agent Service | `ScrcpyMac/AgentService.swift` |
+| 现有 Agent HTTP 服务器（连接模型） | `ScrcpyMac/AgentHTTPServer.swift` |
 | Phone Agent 插件计划 | [phone-agent-plugin-plan.md](./phone-agent-plugin-plan.md) |
 | 架构 | [architecture.md](./architecture.md) |
+
+---
+
+## 附录 D：v1.0 → v1.1 审查记录（2026-07-22）
+
+对 v1.0 方案做了一轮基于真实代码/规范/依赖的核实，发现并修正以下问题：
+
+| 编号 | v1.0 假设 | 核实方式 | 结论 |
+|------|-----------|----------|------|
+| D-1 | `app.callTool(name, args)` 是 ext-apps 正确 API | 读取 `ext-apps` 仓库 `src/app.ts` 源码 | **错误**，正确方法是 `callServerTool({ name, arguments })`，已修正全部代码示例 |
+| D-2 | "FastMCP 支持 `_meta.ui`" 笼统成立 | 下载 `mcp==1.28.1` wheel，反查 `FastMCP.tool()`/`.resource()` 签名与 `Tool.meta` 字段定义 | **部分成立**：本项目实际用的是官方 `mcp` 包冻结的 FastMCP 1.0，有通用 `meta` dict 可手工拼，但没有独立 `fastmcp`（PrefectHQ）包的能力协商/MIME 默认便捷 API；两者是不同代码库，已在 §3.2 补充二选一决策 |
+| D-3 | Phase B 直连 `127.0.0.1:9477` 只需服务端声明 CSP `connectDomains` | 检索 Chrome Local Network Access（LNA）机制与真实踩坑 issue | **不成立/高风险**：现代 Chromium（含多数 Electron 桌面宿主）要求父 frame 显式 `allow="loopback-network"` 才放行嵌套 iframe 访问 loopback，CSP 声明管不到这层；已新增 §B.0 Spike 作为阻塞性前置步骤 |
+| D-4 | Swift 端 MJPEG 端点约 "150 行" | 通读 `AgentHTTPServer.swift` 现有 `receive`/`send` 实现 | **低估**：当前是一次性请求-响应模型，`send()` 完成后即 `cancel()` 连接；MJPEG 需要长连接流式写入，属于连接模型的小型重构，已在 §B.1 补充具体改造点 |
+| D-5 | Cursor/Codex 对 MCP Apps 的支持与 Claude 同等 | 复用此前调研（"支持varies，部分渐进"） | **未证实**：已把兼容矩阵与验收标准改为"先在已知支持宿主验证" |
+
+**未变动、经核实成立的部分**：MCP Apps 规范本身（`ui://`、`text/html;profile=mcp-app`、
+postMessage JSON-RPC）、CSP `connectDomains`/`resourceDomains` 机制、Phase A 复用现有
+Agent Service `/screenshot` + `/tap` 零 Swift 改动的可行性、graceful degradation 原则。
 
 ---
 
