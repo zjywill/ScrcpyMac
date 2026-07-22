@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import os
 import re
 import shlex
 import time
@@ -14,7 +15,7 @@ from typing import Any, Optional
 from PIL import Image, ImageChops
 
 from phone_agent.adb import AdbClient, AdbError
-from phone_agent.agent_client import AgentClient
+from phone_agent.scrcpy_runtime import ScrcpyRuntime, ScrcpyRuntimeError
 
 KEYCODES = {
     "back": 4,
@@ -35,12 +36,10 @@ class PhoneActions:
     def __init__(
         self,
         client: Optional[AdbClient] = None,
-        agent: Optional[AgentClient] = None,
+        runtime: Optional[ScrcpyRuntime] = None,
     ):
-        # adb resolution is lazy: agent-backed operations must keep working
-        # even when adb is not installed at all.
         self._client = client
-        self.agent = agent or AgentClient()
+        self.runtime = runtime or ScrcpyRuntime()
         self._ui_tree_cache: Optional[dict[str, Any]] = None
 
     @property
@@ -50,43 +49,65 @@ class PhoneActions:
         return self._client
 
     def backend(self) -> str:
-        return self.agent.backend_name()
+        return self.runtime.backend_name()
+
+    def selected_serial(self) -> str:
+        status = self.runtime.status()
+        if status.get("serial"):
+            return str(status["serial"])
+        if self._client is not None and self._client.serial:
+            return self._client.serial
+        return os.environ.get("PHONE_AGENT_SERIAL", "")
+
+    def select_device(self, serial: str) -> dict[str, Any]:
+        serial = serial.strip()
+        if not serial:
+            raise AdbError("device serial must not be empty")
+        devices = self.devices()
+        device = next((item for item in devices if item["serial"] == serial), None)
+        if device is None:
+            raise AdbError(f"Android device not found: {serial}")
+        if device["state"] != "device":
+            raise AdbError(f"Android device is {device['state']}: {serial}")
+        self.client.serial = serial
+        self._invalidate_ui_tree_cache()
+        return {
+            "ok": True,
+            "serial": serial,
+            "device": device,
+        }
 
     def _ready(self) -> AdbClient:
         self.client.ensure_device()
         return self.client
 
-    def _agent_try(self, fn):
-        """Run an agent-backend call; return None (caller falls back to adb)
-        when the agent is unavailable or fails mid-flight."""
-        if not self.agent.is_available():
-            return None
-        try:
-            return fn()
-        except OSError:
-            # _request already invalidated the availability cache.
-            return None
-
     def _invalidate_ui_tree_cache(self) -> None:
         self._ui_tree_cache = None
 
     def _foreground_app(self) -> dict[str, Any]:
-        result = self._agent_try(self.agent.foreground_app)
-        if result is not None:
-            return result
         return self._ready().current_app()
 
     def devices(self) -> list[dict]:
         return [d.to_dict() for d in self.client.list_devices()]
 
     def device_info(self) -> dict:
-        info = self._agent_try(self.agent.device_info)
-        if info is not None:
-            try:
-                info["foreground"] = self._foreground_app()
-            except AdbError:
-                pass
-            return info
+        runtime = self.runtime.status()
+        if runtime.get("state") == "streaming":
+            return {
+                "serial": runtime["serial"],
+                "screen": {
+                    "width": runtime["deviceWidth"],
+                    "height": runtime["deviceHeight"],
+                },
+                "video": {
+                    "width": runtime["frameWidth"],
+                    "height": runtime["frameHeight"],
+                    "fps": runtime["fps"],
+                    "codec": runtime["codec"],
+                },
+                "foreground": self._foreground_app(),
+                "backend": "plugin-h264",
+            }
         client = self._ready()
         width, height = client.screen_size()
         app = client.current_app()
@@ -99,14 +120,16 @@ class PhoneActions:
 
     def current_app(self) -> dict:
         app = self._foreground_app()
-        info = self._agent_try(self.agent.device_info)
-        serial = info.get("serial", "") if info is not None else self._ready().serial
+        serial = self.selected_serial() or self._ready().serial
         return {"foreground": app, "serial": serial}
 
     def screenshot(self) -> dict:
-        result = self._agent_try(self.agent.screenshot)
-        if result is not None:
-            return result
+        return self._adb_screenshot()
+
+    def preview_frame(self, max_width: int = 540, quality: int = 60) -> dict:
+        return self._adb_screenshot()
+
+    def _adb_screenshot(self) -> dict:
         client = self._ready()
         png = client.screenshot_png()
         width, height = client.screen_size()
@@ -122,8 +145,15 @@ class PhoneActions:
         }
 
     def _tap_once(self, x: int, y: int) -> dict:
-        result = self._agent_try(lambda: self.agent.tap(x, y))
-        if result is None:
+        runtime = self.runtime.status()
+        if runtime.get("state") == "streaming":
+            width = max(1, int(runtime["deviceWidth"]))
+            height = max(1, int(runtime["deviceHeight"]))
+            result = self.runtime.tap_relative(
+                int(x) / max(width - 1, 1),
+                int(y) / max(height - 1, 1),
+            )
+        else:
             client = self._ready()
             client.shell(f"input tap {int(x)} {int(y)}")
             result = {"ok": True, "action": "tap", "x": x, "y": y, "serial": client.serial}
@@ -282,10 +312,18 @@ class PhoneActions:
         y2: int,
         duration_ms: int = 300,
     ) -> dict:
-        result = self._agent_try(
-            lambda: self.agent.swipe(x1, y1, x2, y2, duration_ms=duration_ms)
-        )
-        if result is None:
+        runtime = self.runtime.status()
+        if runtime.get("state") == "streaming":
+            width = max(1, int(runtime["deviceWidth"]))
+            height = max(1, int(runtime["deviceHeight"]))
+            result = self.runtime.swipe_relative(
+                int(x1) / max(width - 1, 1),
+                int(y1) / max(height - 1, 1),
+                int(x2) / max(width - 1, 1),
+                int(y2) / max(height - 1, 1),
+                duration_ms=duration_ms,
+            )
+        else:
             client = self._ready()
             client.shell(
                 f"input swipe {int(x1)} {int(y1)} {int(x2)} {int(y2)} {int(duration_ms)}"
@@ -305,12 +343,16 @@ class PhoneActions:
         return self.swipe(x, y, x, y, duration_ms=duration_ms)
 
     def key(self, name: str) -> dict:
-        result = self._agent_try(lambda: self.agent.key(name))
-        if result is None:
+        key = name.lower().strip()
+        if key not in KEYCODES:
+            raise AdbError(f"Unknown key {name!r}. Supported: {', '.join(KEYCODES)}")
+        if self.runtime.is_active():
+            try:
+                result = self.runtime.key(key)
+            except ScrcpyRuntimeError as exc:
+                raise AdbError(str(exc)) from exc
+        else:
             client = self._ready()
-            key = name.lower().strip()
-            if key not in KEYCODES:
-                raise AdbError(f"Unknown key {name!r}. Supported: {', '.join(KEYCODES)}")
             code = KEYCODES[key]
             client.shell(f"input keyevent {code}")
             result = {
@@ -338,8 +380,12 @@ class PhoneActions:
     def paste(self, text: str) -> dict:
         if not text:
             raise AdbError("text must not be empty")
-        result = self._agent_try(lambda: self.agent.paste(text))
-        if result is None:
+        if self.runtime.is_active():
+            try:
+                result = self.runtime.paste(text)
+            except ScrcpyRuntimeError as exc:
+                raise AdbError(str(exc)) from exc
+        else:
             client = self._ready()
             client.shell(f"cmd clipboard set-text {shlex.quote(text)}")
             time.sleep(0.15)
@@ -372,9 +418,6 @@ class PhoneActions:
         return {"ok": True, "output": output, "serial": client.serial}
 
     def _dump_ui_xml(self) -> tuple[str, str]:
-        agent_tree = self._agent_try(self.agent.ui_tree)
-        if agent_tree is not None:
-            return agent_tree
         client = self._ready()
         return client.ui_tree_xml(), client.serial
 
@@ -471,10 +514,10 @@ class PhoneActions:
         return result
 
     def _screen_size(self) -> Optional[tuple[int, int]]:
-        info = self._agent_try(self.agent.device_info)
-        if info is not None:
-            screen = info.get("screen") or {}
-            width, height = int(screen.get("width", 0)), int(screen.get("height", 0))
+        runtime = self.runtime.status()
+        if runtime.get("state") == "streaming":
+            width = int(runtime.get("deviceWidth", 0))
+            height = int(runtime.get("deviceHeight", 0))
             if width and height:
                 return width, height
         try:

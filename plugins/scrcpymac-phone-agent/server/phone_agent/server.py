@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import atexit
+import signal
 from typing import Optional
 
 from mcp.server.fastmcp import FastMCP, Image
@@ -9,25 +11,37 @@ from mcp.server.fastmcp import FastMCP, Image
 from phone_agent.actions import PhoneActions, json_result
 from phone_agent.adb import AdbError
 from phone_agent.doctor import run_doctor
+from phone_agent.mcp_ui import register_scrcpymac_app
 from phone_agent.recipes.wechat import send_message
+from phone_agent.scrcpy_runtime import ScrcpyRuntime
 
 mcp = FastMCP(
     "scrcpymac-phone-agent",
     instructions=(
-        "Control a connected Android phone. Prefer ScrcpyMac.app Agent service "
-        "(127.0.0.1:9477) when available for fast scrcpy screenshots and input; "
-        "otherwise falls back to adb. For Chinese text, use phone_paste. "
-        "WeChat: com.tencent.mm."
+        "Control a connected Android phone. The plugin owns its standalone "
+        "scrcpy H.264 and control session; ScrcpyMac.app is not required. "
+        "ADB remains available for screenshots and accessibility automation. "
+        "For Chinese text, use phone_paste. WeChat: com.tencent.mm."
     ),
 )
 
 _actions: Optional[PhoneActions] = None
+_runtime = ScrcpyRuntime()
+atexit.register(_runtime.close)
+
+
+def _stop_on_sigterm(_signum, _frame) -> None:
+    _runtime.close()
+    raise SystemExit(0)
+
+
+signal.signal(signal.SIGTERM, _stop_on_sigterm)
 
 
 def _get_actions() -> PhoneActions:
     global _actions
     if _actions is None:
-        _actions = PhoneActions()
+        _actions = PhoneActions(runtime=_runtime)
     return _actions
 
 
@@ -40,9 +54,12 @@ def _err(exc: Exception) -> str:
     return json_result({"ok": False, "error": str(exc)})
 
 
+register_scrcpymac_app(mcp, _get_actions, _runtime)
+
+
 @mcp.tool()
 def phone_backend() -> str:
-    """Report whether the plugin is using ScrcpyMac Agent (fast) or adb (fallback)."""
+    """Report whether the standalone H.264 runtime or adb fallback is active."""
     try:
         return _ok({"backend": _get_actions().backend()})
     except (AdbError, OSError) as exc:

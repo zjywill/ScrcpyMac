@@ -1,11 +1,14 @@
 # ScrcpyMac Phone Agent
 
-Control your Android phone from **Cursor**, **Codex**, or **Claude** — one plugin install, no hunting for MCP configs.
+Open and control your Android phone directly in **Codex**, with the same tools
+available to Cursor, Claude, and other MCP hosts.
 
 ## What's included
 
 | Component | Description |
 |-----------|-------------|
+| **Codex widget** | Fullscreen H.264 phone stream, touch controls, navigation, paste, and Wi-Fi |
+| **Standalone runtime** | Plugin-owned scrcpy 3.3.4 video/control session; no ScrcpyMac.app process |
 | **MCP server** | 24 tools: screenshot, calibrated taps, paste, UI tree, Wi-Fi adb, WeChat recipe, … |
 | **Skills** | `phone-setup`, `wechat`, `android-nav`, `scrcpymac-link` |
 | **Launcher** | `bin/phone-agent` + `mcp-server.sh` |
@@ -17,6 +20,7 @@ Control your Android phone from **Cursor**, **Codex**, or **Claude** — one plu
 - Python 3.10+
 - Android 10+ with USB debugging
 - `adb` auto-downloaded on install (or use system adb)
+- No ScrcpyMac.app or Homebrew scrcpy installation required
 
 ## Quick install
 
@@ -72,13 +76,22 @@ launch downloads the bundled platform-tools binary.
 In Cursor / Codex chat:
 
 ```
+Open ScrcpyMac
 Check my connected Android phone
 Take a screenshot of my phone
 Send a WeChat message to 张三: 明天见
 Open Android Settings and take a screenshot
 ```
 
-Or call tools directly: `phone_doctor`, `phone_screenshot`, `phone_send_wechat`.
+`open_scrcpymac` opens the native Codex widget. The plugin starts its own
+scrcpy-server session, relays continuous H.264 packets over a token-protected
+loopback WebSocket, and decodes them with WebCodecs. The default is 60 FPS at
+50% resolution; 30 FPS and 75%/100% resolution are selectable. JPEG screenshot
+polling remains an explicit compatibility fallback.
+
+The widget and model tools use the same plugin process and selected device.
+Normal agent calls continue to expose `phone_doctor`, `phone_screenshot`,
+`phone_send_wechat`, and the other model-visible tools.
 
 ## CLI
 
@@ -140,27 +153,28 @@ Placed at `bin/darwin/adb` (and arch mirrors). See `bin/darwin/README.md`.
 | `PHONE_AGENT_PYTHON` | Use an explicitly managed Python instead of the plugin `.venv` |
 | `PHONE_AGENT_BOOTSTRAP_PYTHON` | Base Python used to create the plugin `.venv` |
 | `PHONE_AGENT_AUTO_DOWNLOAD_ADB` | Set to `0` to disable first-launch adb download |
+| `SCRCPY_SERVER_PATH` | Override the plugin-bundled scrcpy-server 3.3.4 binary |
 
 ## Marketplace
 
 See [MARKETPLACE.md](./MARKETPLACE.md) for Cursor/Codex submission checklist.
 
-## ScrcpyMac App fast path (differentiator)
+## Standalone runtime
 
-When **ScrcpyMac.app** is mirroring your phone with **Agent service** enabled:
+The Codex plugin is fully independent from the native macOS app:
 
-1. Plugin auto-uses `http://127.0.0.1:9477` for screenshot/tap/paste/ui-tree (scrcpy speed, full-res frames)
-2. `phone_doctor` shows `backend: scrcpymac-agent`
-3. Shell / Wi-Fi adb still use adb
+1. The plugin bundles `scrcpy-server` 3.3.4.
+2. Its Python MCP process owns adb push/forward, video socket, control socket,
+   loopback WebSocket, and teardown.
+3. The Widget receives original H.264 packets instead of base64 screenshots.
+4. Tap, swipe, navigation, and paste use the same scrcpy control session.
+5. `phone_doctor` reports `plugin-h264-ready` when the standalone runtime assets
+   are available.
 
-App sidebar (v0.4+): **Auto-enable on Connect**, **Install Phone Agent plugin** one-click setup.
-
-Without the App, the plugin works standalone via adb.
-
-## ScrcpyMac app
-
-This plugin works standalone. For visual mirroring, use [ScrcpyMac](https://github.com/zjywill/scrcpyMac) alongside the agent.
+`ScrcpyMac.app` remains a separate product. Installing, launching, quitting, or
+uninstalling it does not change the plugin runtime path.
 
 ## License
 
 MIT — see LICENSE. adb is subject to Google Platform Tools terms when bundled.
+The bundled scrcpy-server is Apache-2.0; see `THIRD_PARTY_NOTICES.md`.

@@ -7,10 +7,6 @@ export PHONE_AGENT_ROOT="$PLUGIN_ROOT"
 SERVER_DIR="$PLUGIN_ROOT/server"
 PYTHON_BIN="${PHONE_AGENT_PYTHON:-python3}"
 
-if [[ -z "${PHONE_AGENT_PYTHON:-}" && -x "$PLUGIN_ROOT/.venv/bin/python" ]]; then
-  PYTHON_BIN="$PLUGIN_ROOT/.venv/bin/python"
-fi
-
 select_bundled_adb() {
   local platform=""
   local arch=""
@@ -71,6 +67,13 @@ ensure_adb_for_mcp() {
   fi
 }
 
+ensure_plugin_runtime() {
+  if [[ -z "${PHONE_AGENT_PYTHON:-}" ]]; then
+    "$PLUGIN_ROOT/scripts/ensure-runtime.sh" >&2
+    PYTHON_BIN="$PLUGIN_ROOT/.venv/bin/python"
+  fi
+}
+
 select_bundled_adb
 
 export PYTHONPATH="$SERVER_DIR${PYTHONPATH:+:$PYTHONPATH}"
@@ -78,24 +81,20 @@ export PYTHONPATH="$SERVER_DIR${PYTHONPATH:+:$PYTHONPATH}"
 cmd="${1:-}"
 case "$cmd" in
   mcp)
-    if [[ -z "${PHONE_AGENT_PYTHON:-}" ]]; then
-      "$PLUGIN_ROOT/scripts/ensure-runtime.sh" >&2
-      PYTHON_BIN="$PLUGIN_ROOT/.venv/bin/python"
-    fi
+    ensure_plugin_runtime
     ensure_adb_for_mcp
     exec "$PYTHON_BIN" -m phone_agent.server
     ;;
   doctor)
-    if [[ -z "${PHONE_AGENT_PYTHON:-}" ]]; then
-      "$PLUGIN_ROOT/scripts/ensure-runtime.sh" >&2
-      PYTHON_BIN="$PLUGIN_ROOT/.venv/bin/python"
-    fi
+    ensure_plugin_runtime
     exec "$PYTHON_BIN" -c "from phone_agent.doctor import run_doctor; import json; print(json.dumps(run_doctor(), indent=2, ensure_ascii=False))"
     ;;
   devices)
+    ensure_plugin_runtime
     exec "$PYTHON_BIN" -c "from phone_agent.actions import PhoneActions; import json; print(json.dumps(PhoneActions().devices(), indent=2, ensure_ascii=False))"
     ;;
   version)
+    ensure_plugin_runtime
     "$PYTHON_BIN" -c "from phone_agent import __version__; print(f'scrcpymac-phone-agent {__version__}')"
     ;;
   *)

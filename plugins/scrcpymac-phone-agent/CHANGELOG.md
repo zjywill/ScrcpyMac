@@ -1,5 +1,79 @@
 # Changelog
 
+## 0.7.2 — 2026-07-22
+
+- Keep the plugin loopback video server alive for the lifetime of the MCP process
+- Publish the exact loopback HTTP and WebSocket origins in the MCP App CSP before the Widget loads
+- Prevent Codex from rejecting the H.264 transport and silently dropping to the sub-1 FPS JPEG compatibility path
+
+## 0.7.1 — 2026-07-22
+
+### Fixed
+
+- Loopback bind failures now transition the standalone runtime to a clean error state
+- MCP `SIGTERM` now stops the scrcpy process and removes its adb forward
+
+### Changed
+
+- ScrcpyMac.app removed its Agent HTTP service, plugin installer, plugin DMG payload,
+  and Agent-only duplicate frame decoder so App and plugin are independent both ways
+
+## 0.7.0 — 2026-07-22
+
+### Added
+
+- Standalone plugin-owned scrcpy 3.3.4 runtime and bundled scrcpy-server
+- Continuous token-protected loopback H.264 stream for the Codex Widget
+- WebCodecs canvas decoding with hardware preference and decode-backlog dropping
+- 30/60 FPS and 50%/75%/100% stream controls
+- Shared scrcpy control socket for Widget tap, swipe, navigation, and paste
+- Explicit backend, encoding, measured FPS, resolution, and device lease status
+
+### Changed
+
+- ScrcpyMac.app is no longer consulted, launched, or required by the plugin
+- JPEG screenshot polling is now compatibility fallback only
+- Default phone stream is encoded on-device at approximately 50% resolution
+
+### Removed
+
+- ScrcpyMac.app Agent HTTP client and all `127.0.0.1:9477` runtime coupling
+
+## 0.6.1 — 2026-07-22
+
+### Added
+
+- Low-latency Agent preview endpoint backed by the latest decoded H.264 pixel buffer
+- Actual preview FPS in the Widget frame status
+
+### Changed
+
+- Preview frames default to 50% width (540px on a 1080px device) and fast JPEG encoding
+- Widget polling targets a 100ms frame interval without adding delay after slow frames
+- ADB fallback uses bilinear resize and skips expensive JPEG optimization
+
+### Fixed
+
+- Active previews now fully hide the stale “Ready to connect” empty state
+
+## 0.6.0 — 2026-07-22
+
+### Added
+
+- Native Codex MCP App opened through `open_scrcpymac`
+- Fullscreen ScrcpyMac workspace with device discovery and selection
+- Interactive screenshot preview with tap and swipe coordinate mapping
+- Widget controls for Android navigation, text paste, and Wi-Fi adb
+- App-only structured tools so widget polling does not clutter model-visible tools
+- Single-file Vite build embedded as `text/html;profile=mcp-app`
+- MCP resource, metadata, frame compression, and packaging tests
+- Runtime bootstrap skips broken Python installations and selects a usable Python 3.10+
+
+### Changed
+
+- Plugin product direction now treats the Codex widget as the primary ScrcpyMac UI
+- Localhost Agent Service remains an optional fast path instead of a widget requirement
+
 ## 0.5.2 — 2026-07-20
 
 ### Fixed

@@ -38,6 +38,9 @@ class PackagingTests(unittest.TestCase):
         pyproject = tomllib.loads(
             (PLUGIN_ROOT / "server/pyproject.toml").read_text(encoding="utf-8")
         )
+        ui_package = json.loads(
+            (PLUGIN_ROOT / "ui/package.json").read_text(encoding="utf-8")
+        )
         init_source = (PLUGIN_ROOT / "server/phone_agent/__init__.py").read_text(
             encoding="utf-8"
         )
@@ -50,6 +53,7 @@ class PackagingTests(unittest.TestCase):
             codex_manifest["version"],
             cursor_manifest["version"],
             pyproject["project"]["version"],
+            ui_package["version"],
             init_version.group(1),
         }
         self.assertEqual(len(versions), 1)
@@ -66,6 +70,27 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(server["cwd"], ".")
         self.assertTrue((PLUGIN_ROOT / "mcp-server.sh").is_file())
         self.assertTrue((PLUGIN_ROOT / "scripts/ensure-runtime.sh").is_file())
+
+    def test_codex_widget_build_is_packaged(self) -> None:
+        widget = PLUGIN_ROOT / "server/phone_agent/static/scrcpymac-app.html"
+        build_script = PLUGIN_ROOT / "scripts/build-ui.sh"
+        package_lock = PLUGIN_ROOT / "ui/package-lock.json"
+
+        self.assertTrue(widget.is_file())
+        self.assertGreater(widget.stat().st_size, 100_000)
+        self.assertTrue(build_script.is_file())
+        self.assertTrue(build_script.stat().st_mode & 0o111)
+        self.assertTrue(package_lock.is_file())
+
+    def test_standalone_runtime_is_packaged_without_app_agent_client(self) -> None:
+        scrcpy_server = PLUGIN_ROOT / "bin/darwin/share/scrcpy-server"
+        app_agent_client = PLUGIN_ROOT / "server/phone_agent/agent_client.py"
+        notices = PLUGIN_ROOT / "THIRD_PARTY_NOTICES.md"
+
+        self.assertTrue(scrcpy_server.is_file())
+        self.assertGreater(scrcpy_server.stat().st_size, 80_000)
+        self.assertFalse(app_agent_client.exists())
+        self.assertTrue(notices.is_file())
 
 
 if __name__ == "__main__":

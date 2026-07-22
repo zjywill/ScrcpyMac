@@ -7,5 +7,6 @@ __pycache__/
 *.egg-info/
 .venv/
 .runtime-bootstrap.lock/
+node_modules/
 dist/
 build/

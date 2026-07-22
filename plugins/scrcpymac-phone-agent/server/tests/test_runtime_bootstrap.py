@@ -109,8 +109,8 @@ fi
         self._run(ensure_runtime)
         first_invocations = self._uv_invocations()
         self.assertEqual(len(first_invocations), 2)
-        self.assertIn(f"venv --python {self.base_python}", first_invocations[0])
-        self.assertIn("pip install --python", first_invocations[1])
+        self.assertIn(f"--python {self.base_python}", first_invocations[0])
+        self.assertIn("pip install --quiet --python", first_invocations[1])
         self.assertIn(f"-e {self.root / 'server'}", first_invocations[1])
 
         self._run(ensure_runtime)
@@ -128,6 +128,33 @@ fi
         self._run(ensure_runtime)
 
         self.assertEqual(len(self._uv_invocations()), 4)
+
+    def test_default_python_selection_skips_unusable_runtime(self) -> None:
+        fallback_python = self.fake_bin / "python3.13"
+        self._write_executable(
+            self.base_python,
+            """#!/usr/bin/env bash
+exit 1
+""",
+        )
+        self._write_executable(
+            fallback_python,
+            """#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == "-c" ]]; then
+  exit 0
+fi
+echo "unexpected fallback python invocation: $*" >&2
+exit 1
+""",
+        )
+        self.env.pop("PHONE_AGENT_BOOTSTRAP_PYTHON", None)
+
+        self._run(str(self.root / "scripts/ensure-runtime.sh"))
+
+        invocations = self._uv_invocations()
+        self.assertEqual(len(invocations), 2)
+        self.assertIn(f"--python {fallback_python}", invocations[0])
 
     def test_concurrent_bootstrap_installs_once(self) -> None:
         ensure_runtime = str(self.root / "scripts/ensure-runtime.sh")

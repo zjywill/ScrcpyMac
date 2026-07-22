@@ -1,40 +1,43 @@
 ---
 name: scrcpymac-link
-description: Relate ScrcpyMac Phone Agent plugin to the ScrcpyMac mirror app. Use when the user mentions ScrcpyMac, wants fast agent control, or asks about mirror vs agent mode.
+description: Explain the standalone ScrcpyMac Phone Agent runtime and how it differs from the separate ScrcpyMac mirror app.
 ---
 
-# ScrcpyMac Link — Fast Agent Path
+# ScrcpyMac Link
 
-ScrcpyMac's differentiator: the **plugin + App share one scrcpy session** for fast screenshots and input.
+The Codex plugin and `ScrcpyMac.app` are separate products. The plugin does not
+launch, call, or require the App.
 
-## Two components
+## Plugin runtime
 
-| Component | Role |
-|-----------|------|
-| **ScrcpyMac.app** | Visual mirror + **Agent service** on `127.0.0.1:9477` |
-| **Phone Agent plugin** | MCP tools for Cursor/Codex/Claude |
+The plugin owns:
 
-## Enable fast path (recommended)
+- adb discovery, push, and port forwarding
+- bundled scrcpy-server 3.3.4
+- continuous H.264 video socket
+- scrcpy control socket
+- token-protected loopback WebSocket
+- Codex WebCodecs canvas
+- teardown of child processes and adb forwards
 
-1. Open **ScrcpyMac.app**
-2. Click **Connect** to mirror the phone (Agent auto-enables if preference is on)
-3. Or click **Install Phone Agent plugin** once, then enable **Agent service**
-4. In Cursor/Codex, run `phone_doctor` — should show `backend: scrcpymac-agent`
+Open `open_scrcpymac`, choose a device, and start the preview. `phone_doctor`
+should report `plugin-h264-ready`; the active Widget reports `plugin-h264`.
 
-## What gets faster
+## Streaming modes
 
-| Action | adb fallback | ScrcpyMac Agent |
-|--------|--------------|-----------------|
-| Screenshot | ~300–800ms | full-res H264 frame |
-| Tap / paste | ~100–300ms | scrcpy control (~5ms) |
-| UI tree | adb shell | session adb via `/ui-tree` |
-| Chinese paste | clipboard cmd | scrcpy SET_CLIPBOARD |
+| Mode | Use |
+|------|-----|
+| H.264 | Default continuous preview, 30/60 FPS, 50%/75%/100% resolution |
+| JPEG | Compatibility fallback when WebCodecs or loopback streaming is unavailable |
 
-Shell and Wi-Fi adb still use **adb** even when Agent is active.
+Tap, swipe, navigation, and paste use the plugin's control socket while H.264 is
+active. Accessibility trees, shell commands, Wi-Fi setup, and explicit model
+screenshots continue to use adb.
 
-## Fallback
+## Separate App
 
-If ScrcpyMac is not running or Agent service is off, the plugin automatically uses **adb** — no configuration needed.
+`ScrcpyMac.app` can still be used independently as a native mirror. Starting or
+stopping it does not select a plugin backend and is not part of plugin setup.
 
 Check backend:
 
@@ -42,23 +45,3 @@ Check backend:
 phone_backend
 phone_doctor
 ```
-
-## Workflow: automation + visual debug
-
-1. Open ScrcpyMac + enable Agent service
-2. Run automation in Cursor (e.g. send WeChat)
-3. Watch the mirror window to verify each step
-
-## API (for reference)
-
-Agent HTTP API at `http://127.0.0.1:9477`:
-
-- `GET /health` — service + connection status (includes serial, screen size)
-- `GET /device` — connected device metadata
-- `GET /screenshot` — full-resolution PNG (+ `X-ScrcpyMac-*` headers)
-- `GET /ui-tree` — uiautomator XML
-- `GET /foreground` — foreground app package/activity
-- `POST /tap` `{"x": 540, "y": 1200}` — response includes `serial`
-- `POST /paste` `{"text": "你好"}`
-
-Only bound to localhost.

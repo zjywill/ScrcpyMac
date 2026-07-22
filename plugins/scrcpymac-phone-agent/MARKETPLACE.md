@@ -8,6 +8,11 @@ Checklist for publishing **ScrcpyMac Phone Agent** to Cursor and Codex marketpla
 - [ ] `./bin/phone-agent doctor` passes with a real device
 - [ ] Test `phone_screenshot`, `phone_paste`, `phone_send_wechat` in Cursor
 - [ ] Test a clean Codex `marketplace add` + `plugin add` and first-launch MCP bootstrap
+- [ ] Open `open_scrcpymac` in Codex and verify the fullscreen widget with a real device
+- [ ] Verify H.264 is active at 30+ FPS with ScrcpyMac.app quit or uninstalled
+- [ ] Verify 50%/75%/100% resolution and 30/60 FPS controls restart the stream
+- [ ] Verify stop/teardown removes the plugin adb forward and child server
+- [ ] Run `./scripts/build-ui.sh` and verify the committed single-file widget is unchanged
 - [ ] Review [PRIVACY.md](./PRIVACY.md)
 - [x] Placeholder screenshots in `assets/screenshots/` (replace with real 1280×800 captures before submit)
 
@@ -47,10 +52,11 @@ codex plugin add scrcpymac-phone-agent@scrcpymac
 | `logo` | `assets/logo.svg` |
 | `skills` | `skills/*/SKILL.md` |
 | `mcpServers` | `mcp.json` → `mcp-server.sh` |
+| MCP App UI | `ui/` source → `server/phone_agent/static/scrcpymac-app.html` |
 
 ## Version bump workflow
 
 1. Update `server/phone_agent/__init__.py`
 2. Update `.cursor-plugin/plugin.json` and `.codex-plugin/plugin.json`
 3. Add entry to `CHANGELOG.md`
-4. Tag release: `phone-agent-v0.2.0`
+4. Tag release: `phone-agent-v0.7.2`

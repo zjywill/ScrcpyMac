@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import os
 import platform
 import shutil
 import sys
-import urllib.error
 from typing import Any
 
 from phone_agent import __version__
 from phone_agent.adb import AdbClient, AdbError, resolve_adb_path
-from phone_agent.agent_client import AgentClient
+from phone_agent.scrcpy_runtime import ScrcpyRuntimeError, resolve_scrcpy_server_path
 
 
 def run_doctor() -> dict[str, Any]:
@@ -30,6 +28,16 @@ def run_doctor() -> dict[str, Any]:
         add("mcp_package", True, "installed")
     except ImportError:
         add("mcp_package", False, "pip install mcp")
+
+    scrcpy_server_ready = False
+    try:
+        scrcpy_server = resolve_scrcpy_server_path()
+        root = os.environ.get("PHONE_AGENT_ROOT", "")
+        bundled = bool(root) and scrcpy_server.startswith(root)
+        add("scrcpy_server", True, scrcpy_server, bundled=bundled)
+        scrcpy_server_ready = True
+    except ScrcpyRuntimeError as exc:
+        add("scrcpy_server", False, str(exc))
 
     try:
         adb_path = resolve_adb_path()
@@ -81,33 +89,15 @@ def run_doctor() -> dict[str, Any]:
         except AdbError as exc:
             add("screen_size", False, str(exc))
 
-    agent = AgentClient()
-    agent_connected = False
-    try:
-        agent_health = agent.health()
-        agent_up = bool(agent_health.get("ok"))
-        agent_connected = bool(agent_health.get("connected"))
-        if agent_connected:
-            add(
-                "scrcpymac_agent",
-                True,
-                "fast path via ScrcpyMac.app :9477",
-                backend="scrcpymac-agent",
-            )
-        elif agent_up:
-            add(
-                "scrcpymac_agent",
-                False,
-                "service running but mirror not connected — open ScrcpyMac and Connect",
-            )
-        else:
-            add("scrcpymac_agent", False, "not available (adb fallback)")
-    except (OSError, urllib.error.URLError, json.JSONDecodeError, TimeoutError):
-        add("scrcpymac_agent", False, "not running — optional; uses adb instead")
+    add(
+        "runtime_architecture",
+        True,
+        "standalone plugin H.264 runtime; ScrcpyMac.app is not used",
+        backend="plugin-h264",
+    )
 
-    # Reuse the health result already fetched above instead of a second /health.
-    preferred_backend = "scrcpymac-agent" if agent_connected else "adb"
-    all_ok = all(c["ok"] for c in checks if c["name"] not in ("foreground_app", "scrcpymac_agent"))
+    preferred_backend = "plugin-h264-ready" if scrcpy_server_ready else "adb"
+    all_ok = all(c["ok"] for c in checks if c["name"] != "foreground_app")
     return {
         "ok": all_ok,
         "version": __version__,
