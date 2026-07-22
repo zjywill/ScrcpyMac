@@ -75,6 +75,7 @@ def resolve_scrcpy_server_path() -> str:
         plugin_root = Path(root)
         candidates.extend(
             [
+                plugin_root / "share" / "scrcpy-server",
                 plugin_root / "bin" / "scrcpy-server",
                 plugin_root / "bin" / "darwin" / "share" / "scrcpy-server",
             ]

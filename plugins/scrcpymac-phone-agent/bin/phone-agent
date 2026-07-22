@@ -31,10 +31,15 @@ select_bundled_adb() {
   esac
 
   if [[ -n "$platform" && -n "$arch" ]]; then
-    candidate="$PLUGIN_ROOT/bin/$platform/$arch/adb"
-    if [[ -x "$candidate" ]]; then
-      export ADB_PATH="$candidate"
-    fi
+    for candidate in \
+      "$PLUGIN_ROOT/bin/$platform/adb" \
+      "$PLUGIN_ROOT/bin/$platform/$arch/adb"
+    do
+      if [[ -x "$candidate" ]]; then
+        export ADB_PATH="$candidate"
+        return 0
+      fi
+    done
   fi
 }
 

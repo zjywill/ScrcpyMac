@@ -45,8 +45,13 @@ class PackagingTests(unittest.TestCase):
             encoding="utf-8"
         )
         init_version = re.search(r'__version__\s*=\s*"([^"]+)"', init_source)
+        go_version_source = (
+            PLUGIN_ROOT / "go/internal/version/version.go"
+        ).read_text(encoding="utf-8")
+        go_version = re.search(r'var Version\s*=\s*"([^"]+)"', go_version_source)
 
         self.assertIsNotNone(init_version)
+        self.assertIsNotNone(go_version)
         versions = {
             marketplace["metadata"]["version"],
             marketplace_plugin["version"],
@@ -55,6 +60,7 @@ class PackagingTests(unittest.TestCase):
             pyproject["project"]["version"],
             ui_package["version"],
             init_version.group(1),
+            go_version.group(1),
         }
         self.assertEqual(len(versions), 1)
 
@@ -83,14 +89,48 @@ class PackagingTests(unittest.TestCase):
         self.assertTrue(package_lock.is_file())
 
     def test_standalone_runtime_is_packaged_without_app_agent_client(self) -> None:
-        scrcpy_server = PLUGIN_ROOT / "bin/darwin/share/scrcpy-server"
+        scrcpy_server = PLUGIN_ROOT / "share/scrcpy-server"
+        adb = PLUGIN_ROOT / "bin/darwin/adb"
         app_agent_client = PLUGIN_ROOT / "server/phone_agent/agent_client.py"
         notices = PLUGIN_ROOT / "THIRD_PARTY_NOTICES.md"
+        adb_notices = PLUGIN_ROOT / "licenses/android-platform-tools-NOTICE.txt"
+        adb_properties = PLUGIN_ROOT / "licenses/android-platform-tools-source.properties"
 
         self.assertTrue(scrcpy_server.is_file())
         self.assertGreater(scrcpy_server.stat().st_size, 80_000)
+        self.assertTrue(adb.is_file())
+        self.assertTrue(adb.stat().st_mode & 0o111)
+        self.assertGreater(adb.stat().st_size, 10_000_000)
+        self.assertFalse((PLUGIN_ROOT / "bin/darwin/arm64/adb").exists())
+        self.assertFalse((PLUGIN_ROOT / "bin/darwin/x86_64/adb").exists())
         self.assertFalse(app_agent_client.exists())
         self.assertTrue(notices.is_file())
+        self.assertGreater(adb_notices.stat().st_size, 1_000_000)
+        self.assertIn("Pkg.Revision=", adb_properties.read_text(encoding="utf-8"))
+
+    def test_go_dependency_notices_are_packaged(self) -> None:
+        notices = (PLUGIN_ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+        dependencies = {
+            "github.com/modelcontextprotocol/go-sdk v1.6.1":
+                "go-modelcontextprotocol-go-sdk-LICENSE.txt",
+            "github.com/google/jsonschema-go v0.4.3":
+                "go-google-jsonschema-go-LICENSE.txt",
+            "github.com/segmentio/asm v1.1.3":
+                "go-segmentio-asm-LICENSE.txt",
+            "github.com/segmentio/encoding v0.5.4":
+                "go-segmentio-encoding-LICENSE.txt",
+            "github.com/yosida95/uritemplate/v3 v3.0.2":
+                "go-yosida95-uritemplate-LICENSE.txt",
+            "golang.org/x/oauth2 v0.35.0": "go-x-oauth2-LICENSE.txt",
+            "golang.org/x/sys v0.41.0": "go-x-sys-LICENSE.txt",
+        }
+
+        for module, license_name in dependencies.items():
+            with self.subTest(module=module):
+                self.assertIn(module, notices)
+                license_path = PLUGIN_ROOT / "licenses" / license_name
+                self.assertTrue(license_path.is_file())
+                self.assertGreater(license_path.stat().st_size, 1_000)
 
 
 if __name__ == "__main__":

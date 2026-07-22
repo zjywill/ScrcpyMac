@@ -785,6 +785,21 @@ class Harness:
 
 # ---------------------------------------------------------------------------
 
+CASE_NAMES = ("doctor", "devices", "screenshot", "tap", "ui-tree", "cli", "errors")
+
+
+def parse_wanted_cases(raw: str) -> list[str]:
+    wanted = [name.strip() for name in raw.split(",") if name.strip()]
+    if not wanted:
+        raise ValueError("no parity cases selected")
+    unknown = sorted(set(wanted) - set(CASE_NAMES))
+    if unknown:
+        raise ValueError(
+            f"unknown parity case(s): {', '.join(unknown)}; "
+            f"valid cases: {', '.join(CASE_NAMES)}"
+        )
+    return wanted
+
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
@@ -806,13 +821,18 @@ def main(argv: list[str]) -> int:
         print(f"ERROR: {args.go_bin} is not executable", file=sys.stderr)
         return 2
 
+    try:
+        wanted = parse_wanted_cases(args.cases)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+
     os.environ["PHONE_AGENT_ROOT"] = PLUGIN_ROOT
     if args.serial:
         os.environ["PHONE_AGENT_SERIAL"] = args.serial
     if args.adb_path:
         os.environ["ADB_PATH"] = args.adb_path
 
-    wanted = [c.strip() for c in args.cases.split(",") if c.strip()]
     harness = Harness(args)
 
     try:

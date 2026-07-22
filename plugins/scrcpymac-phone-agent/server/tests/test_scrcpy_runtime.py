@@ -19,7 +19,7 @@ class ScrcpyRuntimeTests(unittest.TestCase):
     def test_resolves_plugin_bundled_scrcpy_server(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            server = root / "bin" / "darwin" / "share" / "scrcpy-server"
+            server = root / "share" / "scrcpy-server"
             server.parent.mkdir(parents=True)
             server.write_bytes(b"server")
 
@@ -29,6 +29,23 @@ class ScrcpyRuntimeTests(unittest.TestCase):
                 clear=False,
             ):
                 self.assertEqual(resolve_scrcpy_server_path(), str(server))
+
+    def test_prefers_target_layout_over_legacy_scrcpy_server(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "share" / "scrcpy-server"
+            legacy = root / "bin" / "darwin" / "share" / "scrcpy-server"
+            target.parent.mkdir(parents=True)
+            legacy.parent.mkdir(parents=True)
+            target.write_bytes(b"target")
+            legacy.write_bytes(b"legacy")
+
+            with patch.dict(
+                os.environ,
+                {"PHONE_AGENT_ROOT": str(root), "SCRCPY_SERVER_PATH": ""},
+                clear=False,
+            ):
+                self.assertEqual(resolve_scrcpy_server_path(), str(target))
 
     def test_derives_webcodecs_codec_string_from_sps(self) -> None:
         config = (

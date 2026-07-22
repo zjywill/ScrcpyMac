@@ -72,6 +72,7 @@ fi
             {
                 "PATH": f"{self.fake_bin}:{self.env['PATH']}",
                 "PHONE_AGENT_BOOTSTRAP_PYTHON": str(self.base_python),
+                "PHONE_AGENT_BACKEND": "python",
                 "PHONE_AGENT_AUTO_DOWNLOAD_ADB": "0",
                 "FAKE_UV_LOG": str(self.uv_log),
                 "FAKE_VENV_PYTHON_LOG": str(self.python_log),
@@ -217,6 +218,41 @@ printf 'ADB_PATH=%s ARGS=%s\\n' "${ADB_PATH:-}" "$*" > "$MANAGED_PYTHON_LOG"
 """,
         )
         self._write_executable(bundled_adb, "#!/usr/bin/env bash\nexit 0\n")
+        self.env.update(
+            {
+                "PHONE_AGENT_PYTHON": str(managed_python),
+                "MANAGED_PYTHON_LOG": str(managed_log),
+            }
+        )
+
+        self._run(str(self.root / "bin/phone-agent"), "devices")
+
+        invocation = managed_log.read_text(encoding="utf-8")
+        self.assertIn(f"ADB_PATH={bundled_adb}", invocation)
+
+    def test_macos_launcher_selects_universal_bundled_adb(self) -> None:
+        fake_uname = self.fake_bin / "uname"
+        managed_python = self.fake_bin / "managed-python"
+        managed_log = Path(self.temp_dir.name) / "managed-python.log"
+        bundled_adb = self.root / "bin/darwin/adb"
+
+        self._write_executable(
+            fake_uname,
+            """#!/usr/bin/env bash
+case "${1:-}" in
+  -s) echo "Darwin" ;;
+  -m) echo "arm64" ;;
+  *) echo "Darwin" ;;
+esac
+""",
+        )
+        self._write_executable(
+            managed_python,
+            """#!/usr/bin/env bash
+set -euo pipefail
+printf 'ADB_PATH=%s ARGS=%s\\n' "${ADB_PATH:-}" "$*" > "$MANAGED_PYTHON_LOG"
+""",
+        )
         self.env.update(
             {
                 "PHONE_AGENT_PYTHON": str(managed_python),

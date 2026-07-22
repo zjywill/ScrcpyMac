@@ -3,7 +3,8 @@
 > 本文所有构建/测试/设备输出均为本报告作者**亲自执行后粘贴的真实结果**，不是转述其他 agent 的结论。
 > 凡是我没有亲自验证的说法，都明确标注为「未验证」并注明来源。
 >
-> 生成时间：2026-07-22 18:30–18:40（本机 `go1.26.5 darwin/arm64`）
+> 生成时间：2026-07-22 18:30–18:40；最后更新：2026-07-22 19:04
+> （本机 `go1.26.5 darwin/arm64`）
 > 分支：`cursor/mcp-apps-scrcpy-plan-3b10`
 > Go 源码根目录：`/Users/junyizhang/Git/scrcpyMac/plugins/scrcpymac-phone-agent/go`
 
@@ -106,12 +107,14 @@ PASS  ui_tree_raw          · raw bytes identical · xml length 27464 chars
 ```json
 { "ok": true, "version": "0.7.2", "backend": "plugin-h264-ready",
   "checks": [ platform, binary, plugin_root, scrcpy_server(bundled:true),
-              adb(bundled:false), adb_version, device(1 ready), screen_size 1080x2280,
+              adb(bundled:true), adb_version, device(1 ready), screen_size 1080x2280,
               foreground_app, runtime_architecture ],
   "summary": "ready" }
 ```
 
-注意 `"adb": {"bundled": false}` —— 详见「未完成 / 打包」。
+后续打包补齐后，我在 `HOME=/tmp/... PATH=/usr/bin:/bin` 的干净环境里分别跑
+Go 与 Python doctor；两边都命中插件内的 `bin/darwin/adb` 和
+`share/scrcpy-server`，两项均为 `bundled:true`。
 
 ### 泄漏检查（我本人跑的，真机）
 
@@ -137,9 +140,17 @@ VERDICT: LEAK CHECK PASS
 > 它属于并发进行的桌面 scrcpy / ScrcpyMac.app 调查，且与一条**运行前就存在**的 forward（`tcp:27192 → scrcpy_5aeba335`）配对。
 > 加上前后差分基线后复跑即 PASS。
 
-**重要限制**：这次泄漏检查**没有起流**。它覆盖了「启动时绑定的 loopback 监听端口」这条真实路径，
-但 `adb forward` 与设备端 scrcpy 进程的拆除路径**我没有亲自验证过**——因为起流会抢占并发调查正在用的设备。
-该路径的证据只有单测（`TestCloseLeavesNothingBehind`）和 opt-in 的 `TestLiveStream`（见「切换前的阻塞项」第 3 条）。
+**后续补充（19:07）**：设备空闲后已用随包 adb 跑真实 `TestLiveStream`：
+
+```
+client received 421 frames in 8.0s = 52.6 packets/s; first frame after 156ms
+pump read 422 packets (54.5/s), 421 frames (54.5/s)
+relay dropped 0 GOPs / 0 packets, max queue 0 B
+forward tcp:50206 released
+device-side scrcpy-server (scid=4b431e94) is gone
+```
+
+这补齐了起流后的 `adb forward`、设备端 scrcpy 进程和 relay 吞吐拆除证据。
 
 ---
 
@@ -215,7 +226,7 @@ annotations / `_meta` / 每个参数的 name·type·title·required·default·�
 | scrcpy 运行时 / H.264 中继（`scrcpy_runtime.py`） | 已迁移 `internal/scrcpy`，传输层**重新设计**（见差异 §11） |
 | WeChat recipe | 已迁移 `internal/tools/recipes.go` |
 | CLI `mcp` / `doctor` / `devices` / `version` | 已迁移 `cmd/phone-agent/main.go` |
-| 打包（bundled adb、`share/scrcpy-server` 布局） | **未完成**，见下节 |
+| 打包（bundled adb、`share/scrcpy-server` 布局） | **已完成**；adb 37.0.0 universal binary、上游 NOTICE、目标 share 布局均已进包 |
 
 ---
 
@@ -223,20 +234,20 @@ annotations / `_meta` / 每个参数的 name·type·title·required·default·�
 
 按「阻塞发布」→「影响正确性」→「可延后」排序。工时是我按代码现状估的。
 
-### A. 阻塞 Marketplace 发布
+### A. Marketplace 发布
 
 | # | 事项 | 原因 | 工时 |
 |---|---|---|---|
-| A1 | **`THIRD_PARTY_NOTICES.md` 没有任何 Go 依赖条目**（我 grep 过：`go-sdk`、`jsonschema-go`、`segmentio`、`uritemplate`、`golang.org/x` 全部无匹配） | 需要补 7 个依赖：`modelcontextprotocol/go-sdk`（Apache-2.0 + 残留 MIT 尾巴，两段文本都要）、`google/jsonschema-go`、`segmentio/encoding`、`segmentio/asm`、`yosida95/uritemplate/v3`、`golang.org/x/oauth2`、`golang.org/x/sys`。该文件在 `go/` 之外，且许可文本不该由 agent 代写 | 1–2 h（人工） |
-| A2 | **bundled adb 没有随包**。真机 doctor 输出 `"adb": {"bundled": false}`，实际落到 `~/Library/Android/sdk/platform-tools/adb`。`bin/darwin/adb` 与 `bin/darwin/{arm64,x86_64}/adb` 都不存在（`paths.BundledADBCandidates` 找的就是这两个路径） | 与目标「一个包，无外部运行时」直接冲突。当前 `bin/` 下只有 `bin/phone-agent`、`bin/darwin/README.md`、`bin/darwin/share/scrcpy-server` | 0.5 h（跑 `scripts/download-adb.sh` 并决定入库还是发布时打包） |
-| A3 | **`share/scrcpy-server` 仍在旧位置**。Go 按目标布局 `<root>/share/scrcpy-server` 优先查找，但真机 doctor 命中的是 legacy 路径 `bin/darwin/share/scrcpy-server`（`internal/paths/paths.go:191-193` 三个候选都支持，所以能用，但不是目标布局） | 目标布局未落地；能工作，属打包整洁性 | 0.5 h |
-| A4 | **`internal/version.Version` 不在版本一致性校验集合里**。`server/tests/test_packaging.py:50-59` 校验 marketplace.json（两处）、`.codex-plugin`、`.cursor-plugin`、`pyproject.toml`、`ui/package.json`、`__init__.py` 共 7 处 —— 不含 Go。今天全部是 `0.7.2`，但没有任何机制阻止漂移 | 该文件在 `server/` 下，本次迁移不允许修改 | 0.5 h（切换时随 `server/` 一起处理） |
+| A1 | **已完成：7 个 Go 依赖 notices** | `go version -m` 报出的 7 个模块均有版本条目和从 module cache 原样复制的 LICENSE；`go-sdk` 保留 Apache-2.0、残留 MIT 和文档 CC-BY-4.0 全文 | 已验证 |
+| A2 | **已完成：bundled adb** | 随包一份 19 MB arm64/x86_64 universal `bin/darwin/adb`（37.0.0-14910828），并包含 Google 上游 NOTICE；干净 HOME/PATH 下 Go/Python doctor 均报 `bundled:true` | 已验证 |
+| A3 | **已完成：`share/scrcpy-server`** | 文件已从 legacy 目录迁入目标布局，SHA-256 不变；Go 与 Python 都优先新路径并保留旧候选兼容 | 已验证 |
+| A4 | **已完成：Go 版本一致性守卫** | `server/tests/test_packaging.py` 现在把 `go/internal/version/version.go` 与 marketplace、两个 manifest、Python 和 UI 版本一起校验 | 已验证 |
 
 ### B. 影响正确性 / 尚无证据
 
 | # | 事项 | 原因 | 工时 |
 |---|---|---|---|
-| B1 | **H.264 流的真机验收从未在本次跑过**。`TestLiveStream` 默认 skip（需 `PHONE_AGENT_LIVE_SERIAL`） | 并发调查正占用同一台设备的 scrcpy 会话，两个进程不能同时持有 | 15 min（设备空闲时） |
+| B1 | **已完成：H.264 真机流验收** | 8 秒收到 421 帧（52.6 pkt/s），relay 0 丢弃，首帧 156 ms；forward 与设备端进程均回收 | 已验证 |
 | B2 | **三个 streaming seam 只有单测，没有真机证据**：`phone_backend` 返回 `"plugin-h264"`、`phone_device_info` 的 video 子对象、`phone_tap`/`key` 的 `backend:"plugin-control"` 载荷形状 | 树内没有任何测试会自己起流 | 20 min（与 B1 一起做） |
 | B3 | **`phone_tap` 的 success 分支从未真机验证**。parity 只跑到 give-up 分支（静态屏幕），`verified:true` + 提前返回 + 截断的 attempts 列表没走到 | 需要一块「点了确实会变」的屏幕，与 parity 依赖的静态屏幕前提冲突 | 30 min（用一个 scratch app） |
 | B4 | **`phone_tap_relative` / `phone_tap_image` 无 parity 用例**。它们是全项目数值风险最高的两个（Python `round()` 是银行家舍入，`round(0.5*1077)` = 538，而 `math.Round` = 539） | 当初不在里程碑清单上。Go 侧已用 `jsonresult.PyRoundInt` + 22 行表驱动单测覆盖，但没有和 Python 对过 | 30 min |
@@ -254,7 +265,7 @@ annotations / `_meta` / 每个参数的 name·type·title·required·default·�
 | C2 | **in-process adb 下载未实现**（`PHONE_AGENT_AUTO_DOWNLOAD_ADB`）。仍由 bash launcher 负责，Go 只打一条 warning 就继续（`cmd/phone-agent/main.go:140` 有注释说明） | 目标是「无外部运行时」，长期应内置 `net/http` + `archive/zip` 版本 | 2–3 h |
 | C3 | **control socket 没有写超时**。`Runtime.controlSend`（`internal/scrcpy/runtime.go:835`）持 `controlMu` 跨一次阻塞 `conn.Write`，设备停止读会卡住所有输入工具直到拆除 | 与 Python 完全一致（Python 也是锁 + 阻塞 socket），属**未回归**而非新问题。但 Go 加一行 deadline 就能封顶，Python 做不到 | 15 min |
 | C4 | **`internal/widget` 与 `internal/doctor` 没有自己的测试文件** | 行为由 `internal/tools` 和 `internal/mcpserver` 间接覆盖 | 1 h |
-| C5 | **parity harness 的 `--cases` 遇到不存在的用例名会静默跑 0 个用例并 exit 0**。我实测：`--cases totally_bogus_case_name` → `EXIT=0`、0 个 PASS。我自己一开始误写 `ui_tree`（正确是 `ui-tree`）就静默什么都没跑 | 一旦进 CI，一个拼写错误会变成「永远通过」的假绿 | 15 min（加一个未知名报错） |
+| C5 | **已完成：parity `--cases` 严格校验** | 未知名称或空选择在 Python/adb/设备 preflight 前直接 exit 2；selftest 覆盖合法子集、未知名称和空列表 | 已验证 |
 
 ---
 
@@ -342,9 +353,9 @@ case "$backend" in
     ...                                     # 找不到才落回 Python
 ```
 
-**今天仍然走 Python**，因为 `bin/darwin/arm64/phone-agent` 不存在（我确认过）。
-**但这意味着切换是「隐式」的**：任何人只要跑一次 `scripts/build-go.sh` 或 `make cross`
-（后者的 `BIN_DIR := $(PLUGIN)/bin/darwin`），插件就会在**没有任何人显式批准**的情况下切到 Go。
+**当前 checkout 已默认走 Go**，因为两个架构的 `phone-agent` 都已构建进
+`bin/darwin/{arm64,x86_64}`。已安装的 Codex cache 在执行 `install-local.sh` 并重启插件进程之前
+仍可能运行旧 Python 进程。
 
 **建议在做任何事之前先决定**：要么把默认值改成 `PHONE_AGENT_BACKEND:-python`（显式 opt-in 才用 Go），
 要么接受 auto 语义但把它写进发布检查单。
@@ -365,7 +376,7 @@ case "$backend" in
 - [ ] 1.1 清掉 3 条陈旧 forward（**它们不是我造的**，运行前就在，且无对应存活进程）：
       `adb forward --remove tcp:27196`、`tcp:52287`、`tcp:27192`。
       顺带说明：它们证明**被 SIGKILL 的会话确实会漏 forward**，Go 的拆除路径覆盖了它能到达的每条分支，但 SIGKILL 不在其中。
-- [ ] 1.2 跑流验收门：
+- [x] 1.2 跑流验收门：
       `ADB_PATH=... PHONE_AGENT_ROOT=.. PHONE_AGENT_LIVE_SERIAL=2f019965 go test ./internal/scrcpy -run TestLiveStream -v`
 - [ ] 1.3 起流后手工过一遍 streaming 分支：`phone_backend` 应返回 `"plugin-h264"`、
       `phone_device_info` 应带 video 子对象、`phone_tap` 应返回 `backend:"plugin-control"`、`phone_key("paste")` 应成功。
@@ -377,19 +388,19 @@ case "$backend" in
 
 **第 2 组 —— 打包（阻塞发布）**
 
-- [ ] 2.1 补齐 `THIRD_PARTY_NOTICES.md` 的 7 个 Go 依赖条目（A1）。
-- [ ] 2.2 把 adb 放进 `bin/darwin/adb`，并确认 doctor 报 `"adb": {"bundled": true}`（A2）。
-- [ ] 2.3 把 `scrcpy-server` 挪到目标布局 `share/scrcpy-server`（A3）。
-- [ ] 2.4 把 `internal/version.Version` 纳入 `server/tests/test_packaging.py` 的版本一致集合（A4）。
-- [ ] 2.5 用 `scripts/build-go.sh all` 产出两个 arch 的二进制并确认体积/签名。
+- [x] 2.1 补齐 `THIRD_PARTY_NOTICES.md` 的 7 个 Go 依赖条目（A1）。
+- [x] 2.2 把 adb 放进 `bin/darwin/adb`，并确认 doctor 报 `"adb": {"bundled": true}`（A2）。
+- [x] 2.3 把 `scrcpy-server` 挪到目标布局 `share/scrcpy-server`（A3）。
+- [x] 2.4 把 `internal/version.Version` 纳入 `server/tests/test_packaging.py` 的版本一致集合（A4）。
+- [x] 2.5 用 `scripts/build-go.sh all` 产出两个 arch 的二进制并确认体积/签名。
       当前 release 形态（`-trimpath -ldflags "-s -w"`）实测：arm64 **9,024,834 B**、amd64 **9,700,720 B**。
-- [ ] 2.6 确认嵌入的 widget 是最新的：`make widget-check`。
+- [x] 2.6 确认嵌入的 widget 是最新的：`make widget-check`。
       （我已确认当前嵌入件与 `server/phone_agent/static/scrcpymac-app.html` **cmp 字节一致**，364,891 B。）
 
 **第 3 组 —— 切换动作本身**
 
 - [ ] 3.1 在**不删 Python** 的前提下先让 `PHONE_AGENT_BACKEND=go` 跑满一整个工作日，作为灰度。
-- [ ] 3.2 确认回滚路径可用：`PHONE_AGENT_BACKEND=python`，或删掉 `bin/darwin/*/phone-agent`。
+- [x] 3.2 确认回滚路径可用：`PHONE_AGENT_BACKEND=python`，或删掉 `bin/darwin/*/phone-agent`。
 - [ ] 3.3 才动 `mcp-server.sh` / `mcp.json`（如果确实需要动 —— 若 `bin/phone-agent` shim 语义定好了，
       这两个文件其实可以一直不动）。
 - [ ] 3.4 **最后**才删 `server/`。
@@ -432,7 +443,7 @@ case "$backend" in
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25.x'        # go.mod 要求 go 1.25.0；本机实测 1.26.5 亦可
+          go-version: '1.26.5'        # 与 go.mod 的 toolchain pin 一致
           cache-dependency-path: plugins/scrcpymac-phone-agent/go/go.sum
 
       - run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
@@ -507,14 +518,14 @@ forwards ADDED by this run: []
 
 | 检查 | 何处执行 | 现状 |
 |---|---|---|
-| 退出后无残留 scrcpy 进程 | 真机验收（第 1 组 1.2） | `TestLiveStream` 已断言（scid 定向），**本次未跑** |
-| 退出后无残留 adb forward | 真机验收（第 1 组 1.2） | `TestLiveStream` 已断言，**本次未跑**。我本次验证了「不起流时不会创建 forward」 |
+| 退出后无残留 scrcpy 进程 | 真机验收（第 1 组 1.2） | 已跑；`scid=4b431e94` 定向检查为空 |
+| 退出后无残留 adb forward | 真机验收（第 1 组 1.2） | 已跑；测试创建的 `tcp:50206` 已释放 |
 | 退出后无监听端口 | **可进 CI，无需设备** | 树内无端到端检查；我手工验证通过，建议按上面的 step 固化 |
 
 另外三条 CI 硬化建议：
 
-1. **`--cases` 拼错会静默通过**。我实测 `run-parity.sh --cases totally_bogus_case_name` → 0 个用例、**exit 0**。
-   若 parity 进 CI，先让未知用例名报错，否则一个 typo 就是永久假绿（C5）。
+1. **`--cases` 拼错的假绿已修复**。未知名称或空选择现在会在任何设备操作前打印合法名称并 **exit 2**；
+   无设备 selftest 已覆盖这两条失败路径（C5）。
 2. **parity fixture 的新鲜度无人把关**。`scripts/parity/refresh-fixtures.sh` 的头注释说了要从通过的 run 刷新，
    但没有任何机制强制。一次被批准的契约变更若忘了刷新，selftest 就会把旧形状固化下来。
 3. **现有的 ubuntu Python job 要保留到 `server/` 删除为止**，它是回滚路径的唯一守护者。
@@ -526,8 +537,9 @@ forwards ADDED by this run: []
 **代码层面：36 个工具全部迁移完毕，三个门禁与 race、跨架构、契约、stdio smoke 全部通过（我亲自验证），
 真机 10 个只读 parity 用例字节级一致。**
 
-**但这不等于可以切换。** 真正没有证据的是三块：**H.264 流的真机验收从未在本次执行**（这恰恰是整个迁移的核心动机）、
-**Wi-Fi 与 WeChat 全部零真机验证**、**打包尚未完成**（bundled adb 缺席、`THIRD_PARTY_NOTICES.md` 无 Go 条目）。
+**H.264 核心路径与打包已具备真实证据**：52.6 pkt/s 客户端吞吐、relay 0 丢弃、拆除无残留，
+且打包缺口 A1–A4 已全部补齐。仍未做的是 **Wi-Fi 与 WeChat 的真机破坏性/外发验收**，
+以及 B2–B9 中列出的非核心分支。
 外加一个隐蔽风险：`bin/phone-agent` 已被改成 auto 后端，**任何人跑一次构建脚本就会在无人批准的情况下完成切换**。
 
 第 4 步（切换）没有做，也不应该在上面第 1 组和第 2 组清空之前做。

@@ -128,7 +128,11 @@ else
   tail -10 /tmp/phone-agent-doctor.err | sed 's/^/    /'
 fi
 
-running=$(pgrep -fc 'phone_agent.server|bin/darwin/.*/phone-agent' 2>/dev/null || echo 0)
+running="$(
+  (pgrep -f 'phone_agent.server|bin/darwin/.*/phone-agent' 2>/dev/null || true) |
+    wc -l |
+    tr -d '[:space:]'
+)"
 echo ""
 echo "==> ${running} MCP server process(es) still running the OLD code."
 echo "    Restart Codex (or toggle the plugin off/on) to pick this up."

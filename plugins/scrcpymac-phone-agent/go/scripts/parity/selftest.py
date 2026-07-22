@@ -24,7 +24,7 @@ sys.path.insert(0, HERE)
 
 import compare  # noqa: E402
 from compare import IGNORE, Rules  # noqa: E402
-from parity import Case, compare_doctor, compare_payloads  # noqa: E402
+from parity import Case, compare_doctor, compare_payloads, parse_wanted_cases  # noqa: E402
 
 FIXTURES = os.path.join(HERE, "fixtures")
 
@@ -442,6 +442,30 @@ def run_doctor_cases() -> list[str]:
     return problems
 
 
+def run_case_selection_controls() -> list[str]:
+    problems = []
+    got = parse_wanted_cases("doctor, ui-tree,doctor")
+    if got == ["doctor", "ui-tree", "doctor"]:
+        print("  [ok] valid case subsets are preserved")
+    else:
+        problems.append(f"valid case subset parsed as {got!r}")
+
+    for raw, expected in [
+        ("doctor,totally_bogus_case_name", "unknown parity case"),
+        (", ,", "no parity cases selected"),
+    ]:
+        try:
+            parse_wanted_cases(raw)
+        except ValueError as exc:
+            if expected in str(exc):
+                print(f"  [ok] invalid --cases {raw!r} is rejected")
+            else:
+                problems.append(f"{raw!r} failed with unexpected error: {exc}")
+        else:
+            problems.append(f"{raw!r} was accepted")
+    return problems
+
+
 def main() -> int:
     if not os.path.isdir(FIXTURES):
         print(f"ERROR: {FIXTURES} is missing. Run run-parity.sh once, then "
@@ -453,6 +477,8 @@ def main() -> int:
     problems += run_doctor_cases()
     print("\ncontrols (the harness must not cry wolf):")
     problems += run_control_cases()
+    print("\ncase selection (zero-case success must be impossible):")
+    problems += run_case_selection_controls()
     print()
     if problems:
         for p in problems:

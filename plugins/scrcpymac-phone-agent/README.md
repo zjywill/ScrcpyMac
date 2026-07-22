@@ -141,7 +141,8 @@ Manual download:
 ./scripts/download-adb.sh linux    # Linux dev
 ```
 
-Placed at `bin/darwin/adb` (and arch mirrors). See `bin/darwin/README.md`.
+Placed at `bin/darwin/adb` as a universal arm64/x86_64 binary. See
+`bin/darwin/README.md`.
 
 ## Environment variables
 
