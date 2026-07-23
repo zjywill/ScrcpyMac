@@ -289,7 +289,7 @@
     ],
     "scrolls": 1,
     "found": null,
-    "error": "Element not found within 2.0s (text=['nope']). Last tree had 96 nodes, after 1 scroll(s)."
+    "error": "Element not found within 2.0s (text=['nope']). Last tree had 96 nodes, after 1 scroll(s). UI tree looks incomplete (WebView/Compose/custom-drawn). Fall back to phone_screenshot for vision."
   },
   {
     "name": "miss-index-out-of-range",
@@ -354,7 +354,7 @@
     ],
     "scrolls": 0,
     "found": null,
-    "error": "Element not found within 2.0s (text=['nope']). Last tree had 0 nodes."
+    "error": "Element not found within 2.0s (text=['nope']). Last tree had 0 nodes. UI dump was empty or unparseable. Retry phone_ui_tree or fall back to phone_screenshot for vision."
   },
   {
     "name": "miss-cjk-criteria",

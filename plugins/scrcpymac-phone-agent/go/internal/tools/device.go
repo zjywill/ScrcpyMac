@@ -24,8 +24,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"image/png"
-	"log/slog"
 	"os"
 	"sync"
 	"time"
@@ -368,8 +368,7 @@ type deviceShot struct {
 //
 // There is no scrcpy-stream path here: even while the H.264 session runs,
 // screenshots go through `adb exec-out screencap`. Width and height come from
-// `wm size`, NOT from the PNG header, so they stay consistent with the space
-// phone_tap_relative / phone_tap_image map into.
+// the PNG header, which is the exact coordinate space visible to the caller.
 func deviceCaptureScreenshot(ctx context.Context, client *adb.Client) (deviceShot, error) {
 	serial, err := client.EnsureDevice(ctx)
 	if err != nil {
@@ -380,7 +379,7 @@ func deviceCaptureScreenshot(ctx context.Context, client *adb.Client) (deviceSho
 	if err != nil {
 		return deviceShot{}, err
 	}
-	width, height, err := client.ScreenSize(ctx)
+	width, height, err := deviceRequirePNGSize(data)
 	if err != nil {
 		return deviceShot{}, err
 	}
@@ -417,7 +416,6 @@ func deviceScreenshotResult(ctx context.Context, env *mcpserver.Env, includeImag
 		// no image block, still isError=false.
 		return deviceTextOnly(Fail(err))
 	}
-	deviceCheckPNG(env.Log, shot)
 
 	payload := deviceScreenshotPayload(shot, includeImage)
 	if includeImage {
@@ -432,12 +430,6 @@ func deviceTextOnly(payload *jsonresult.Obj) (*mcp.CallToolResult, any, error) {
 }
 
 // deviceTextAndPNG emits the text block followed by the image block.
-//
-// It exists instead of TextAndImage because that helper drops the image block
-// for an empty byte slice. A zero-byte screencap is pathological but real
-// (a wedged surfaceflinger returns success with no data), and dropping the
-// block would silently change the content shape the contract fixes at two
-// blocks whenever include_image is true.
 //
 // Data is RAW bytes: encoding/json base64-encodes []byte on its own, so
 // pre-encoding here would ship double-base64 and a broken screenshot.
@@ -462,27 +454,12 @@ func devicePNGSize(data []byte) (int, int, error) {
 	return cfg.Width, cfg.Height, nil
 }
 
-// deviceCheckPNG reports capture problems on stderr without changing the
-// payload. An undecodable capture is a genuine failure mode (a truncated
-// exec-out, or newline translation applied by mistake) that would otherwise
-// surface as an unreadable image with no explanation. A size disagreement is
-// normal on devices with a display override — `wm size` reports the physical
-// size — so it is only logged at debug level.
-func deviceCheckPNG(log *slog.Logger, shot deviceShot) {
-	if log == nil {
-		return
-	}
-	width, height, err := devicePNGSize(shot.PNG)
+func deviceRequirePNGSize(data []byte) (int, int, error) {
+	width, height, err := devicePNGSize(data)
 	if err != nil {
-		log.Warn("screencap did not return a decodable PNG",
-			"serial", shot.Serial, "bytes", len(shot.PNG), "err", err)
-		return
+		return 0, 0, fmt.Errorf("could not decode screenshot PNG: %w", err)
 	}
-	if width != shot.Width || height != shot.Height {
-		log.Debug("screencap size differs from wm size",
-			"pngWidth", width, "pngHeight", height,
-			"reportedWidth", shot.Width, "reportedHeight", shot.Height)
-	}
+	return width, height, nil
 }
 
 // ---------------------------------------------------------------------------

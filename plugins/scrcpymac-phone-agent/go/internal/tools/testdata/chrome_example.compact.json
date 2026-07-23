@@ -146,5 +146,7 @@
     }
   ],
   "count": 11,
-  "serial": "2f019965"
+  "serial": "2f019965",
+  "degraded": true,
+  "hint": "UI tree looks incomplete (WebView/Compose/custom-drawn). Fall back to phone_screenshot for vision."
 }

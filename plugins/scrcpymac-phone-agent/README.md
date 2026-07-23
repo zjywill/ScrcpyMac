@@ -109,7 +109,7 @@ Normal agent calls continue to expose `phone_doctor`, `phone_screenshot`,
 | `phone_doctor` | Environment diagnostics |
 | `phone_list_devices` | List adb devices |
 | `phone_device_info` | Screen size + foreground app |
-| `phone_screenshot` | PNG screenshot (+ image for vision) |
+| `phone_screenshot` | PNG screenshot (+ image for vision); reported dimensions match the PNG pixel space |
 | `phone_tap` | Tap native device pixels, then verify and retry nearby |
 | `phone_tap_relative` | Tap normalized screenshot coordinates (`0...1`) |
 | `phone_tap_image` | Map coordinates from a displayed/resized screenshot |
@@ -120,7 +120,7 @@ Normal agent calls continue to expose `phone_doctor`, `phone_screenshot`,
 | `phone_paste` | Chinese + emoji via clipboard |
 | `phone_launch_app` | Launch by package name |
 | `phone_current_app` | Foreground app |
-| `phone_ui_tree` | Accessibility tree with per-node `index` and state flags (`scrollable`, `enabled: false`, `focused`, `checked`…); `degraded: true` means the tree is incomplete (WebView/Compose) — fall back to `phone_screenshot` |
+| `phone_ui_tree` | Accessibility tree with per-node `index` and state flags (`scrollable`, `enabled: false`, `focused`, `checked`…); `degraded: true` means the tree is incomplete or unsupported (WebView/Compose/custom-drawn) — fall back to `phone_screenshot` |
 | `phone_find_and_tap` | Find element and tap. `require_all=true` ANDs the given selectors (e.g. `text` + `resource_id` to disambiguate); `exact=true` matches whole strings; `index=1` taps the 2nd match; `scroll_to_find=3` scrolls down up to 3 times for off-screen items |
 | `phone_wait_for_text` | Wait for UI text |
 | `phone_shell` | adb shell command |

@@ -401,30 +401,18 @@ stderr `/system/bin/sh: tcpip: inaccessible or not found`, exit 127.
 
 ### 1.9 `screen_size()`
 
-```python
-output = self.shell("wm size")
-match = re.search(r"(\d+)x(\d+)", output)
-if not match: raise AdbError(f"Could not parse screen size from: {output!r}")
-return int(g1), int(g2)
-```
-
-Live output on the OnePlus 6: `Physical size: 1080x2280` → `(1080, 2280)`.
-
-**Gotcha:** `re.search` returns the **first** match. When a display override is active `wm size`
-prints two lines:
+The original Python searched the first `WxH` in `wm size`. When a display
+override is active, that output is:
 
 ```
 Physical size: 1080x2280
 Override size: 720x1520
 ```
 
-The Python therefore reports the **physical** size, not the effective one that `input tap`
-coordinates are interpreted in. That is arguably wrong but it is the current behaviour and
-`actions.py` clamps taps against it (`_clamp_device_point`, actions.py:533). **Do not "fix" it** in
-this port — a change here silently shifts every tap coordinate. Go: `regexp.MustCompile(`(\d+)x(\d+)`)`
-+ `FindStringSubmatch` (first match), same semantics.
-
-`strconv.Atoi` on groups; the regex guarantees digits, but guard the overflow error anyway.
+That old behavior reported the physical size and shifted every screenshot-based
+tap. The Go implementation intentionally queries WindowManager's `cur=WxH`
+coordinate space first, then falls back to Override size, Physical size, and a
+generic legacy `WxH` match. This also handles landscape rotation.
 
 ### 1.10 Remaining `AdbClient` methods (needed by other specs, listed for completeness)
 

@@ -13,11 +13,10 @@ package tools
 //     the order scrollable, enabled, password, focused, selected, checkable,
 //     checked — enabled appears ONLY when false, checked ONLY alongside
 //     checkable, everything else only when true;
-//   - the two degraded triggers, which are computed over the KEPT nodes: a
-//     class containing "WebView", or fewer than three nodes that are clickable
-//     or carry text. The WebView node of a non-scrolling page is dropped by the
-//     inclusion filter, so such a screen is deliberately NOT degraded
-//     (testdata/chrome_example.xml pins exactly that);
+//   - the two degraded triggers: any raw XML node whose class contains
+//     "WebView", or fewer than three KEPT nodes that are clickable or carry
+//     text. Inspecting raw classes matters because a non-scrolling WebView root
+//     is otherwise removed by the compact inclusion filter;
 //   - the poll cadence: deadline checked only at the top of the loop, first
 //     iteration reads the cache, 1.5^n backoff capped at 2 s, and a scroll that
 //     consumes an attempt but skips the sleep.
@@ -296,15 +295,25 @@ type uitreeAttrs struct {
 	selected    string
 }
 
+type uitreeParseMeta struct {
+	hasWebView bool
+}
+
 // uitreeParseXML walks every <node> element in document order and compacts it.
 //
 // A non-nil error is the ET.ParseError branch: an empty dump, a truncated dump,
 // or anything that is not XML at all. Callers must NOT cache such a result.
 func uitreeParseXML(doc string) ([]*uitreeNode, error) {
+	nodes, _, err := uitreeParseXMLWithMeta(doc)
+	return nodes, err
+}
+
+func uitreeParseXMLWithMeta(doc string) ([]*uitreeNode, uitreeParseMeta, error) {
 	decoder := xml.NewDecoder(strings.NewReader(doc))
 	decoder.Strict = true
 
 	nodes := []*uitreeNode{}
+	meta := uitreeParseMeta{}
 	sawElement := false
 	for {
 		token, err := decoder.Token()
@@ -312,7 +321,7 @@ func uitreeParseXML(doc string) ([]*uitreeNode, error) {
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, uitreeParseMeta{}, err
 		}
 		start, ok := token.(xml.StartElement)
 		if !ok {
@@ -322,6 +331,12 @@ func uitreeParseXML(doc string) ([]*uitreeNode, error) {
 		if start.Name.Local != "node" {
 			continue
 		}
+		for _, attr := range start.Attr {
+			if attr.Name.Local == "class" && strings.Contains(attr.Value, "WebView") {
+				meta.hasWebView = true
+				break
+			}
+		}
 		if node := uitreeCompactNode(start, len(nodes)); node != nil {
 			nodes = append(nodes, node)
 		}
@@ -329,9 +344,9 @@ func uitreeParseXML(doc string) ([]*uitreeNode, error) {
 	if !sawElement {
 		// Go's decoder happily reports EOF for "" or for plain text, where
 		// ElementTree raises ParseError("no element found"). Map it back.
-		return nil, errors.New("no element found")
+		return nil, uitreeParseMeta{}, errors.New("no element found")
 	}
-	return nodes, nil
+	return nodes, meta, nil
 }
 
 // uitreeCompactNode applies the inclusion filter and builds the node, or returns
@@ -441,17 +456,13 @@ func uitreeBoundsCenter(bounds string) []int {
 // uitreeBuildTree turns a dump into the compact result, including the two
 // degraded triggers.
 func uitreeBuildTree(doc, serial string) *uitreeTree {
-	nodes, err := uitreeParseXML(doc)
+	nodes, meta, err := uitreeParseXMLWithMeta(doc)
 	if err != nil {
 		return &uitreeTree{Compact: true, Serial: serial, XML: doc, ParseError: true, Degraded: true, Hint: uitreeParseErrorHint}
 	}
 
-	hasWebView := false
 	interactive := 0
 	for _, node := range nodes {
-		if strings.Contains(node.Class, "WebView") {
-			hasWebView = true
-		}
 		// Python truthiness: clickable true, or a non-empty text.
 		if node.Clickable || node.Text != "" {
 			interactive++
@@ -459,7 +470,7 @@ func uitreeBuildTree(doc, serial string) *uitreeTree {
 	}
 
 	tree := &uitreeTree{Compact: true, Serial: serial, Nodes: nodes}
-	if hasWebView || interactive < 3 {
+	if meta.hasWebView || interactive < 3 {
 		tree.Degraded = true
 		tree.Hint = uitreeDegradedHint
 	}
@@ -822,19 +833,23 @@ func (g *uitreeGroup) pollForNode(
 		g.sleep(ctx, math.Min(pollIntervalS*math.Pow(uitreePollBackoffBase, float64(exponent)), uitreePollBackoffCap))
 	}
 
-	return nil, lastTree, &adb.Error{Msg: uitreeNotFoundMessage(timeoutS, criteria, lastTree.nodeCount(), scrollsUsed, scrollToFind)}
+	return nil, lastTree, &adb.Error{Msg: uitreeNotFoundMessage(timeoutS, criteria, lastTree, scrollsUsed, scrollToFind)}
 }
 
 // uitreeNotFoundMessage builds _poll_for_node's timeout error by the same string
 // concatenation the Python uses. timeout_s is rendered with Python float repr,
 // so 10 prints as "10.0".
-func uitreeNotFoundMessage(timeoutS float64, criteria *uitreeCriteria, count, scrollsUsed, scrollToFind int) string {
+func uitreeNotFoundMessage(timeoutS float64, criteria *uitreeCriteria, tree *uitreeTree, scrollsUsed, scrollToFind int) string {
 	msg := fmt.Sprintf("Element not found within %ss (%s). Last tree had %d nodes",
-		jsonresult.PyRepr(timeoutS), criteria.describe(), count)
+		jsonresult.PyRepr(timeoutS), criteria.describe(), tree.nodeCount())
 	if scrollToFind != 0 {
 		msg += fmt.Sprintf(", after %d scroll(s)", scrollsUsed)
 	}
-	return msg + "."
+	msg += "."
+	if tree != nil && tree.Degraded && tree.Hint != "" {
+		msg += " " + tree.Hint
+	}
+	return msg
 }
 
 // scrollOnce is _scroll_once(direction="up"): one mid-screen swipe from 70 % to

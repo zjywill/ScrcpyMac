@@ -151,31 +151,60 @@ func (c *Client) EnsureDevice(ctx context.Context) (string, error) {
 }
 
 var (
-	screenSizeRe = regexp.MustCompile(`(\d+)x(\d+)`)
-	currentAppRe = regexp.MustCompile(`([a-zA-Z0-9_.]+)/([a-zA-Z0-9_.$]+)`)
+	screenSizeRe        = regexp.MustCompile(`(\d+)x(\d+)`)
+	currentScreenSizeRe = regexp.MustCompile(`\bcur=(\d+)x(\d+)\b`)
+	overrideSizeRe      = regexp.MustCompile(`(?m)^Override size:\s*(\d+)x(\d+)\s*$`)
+	physicalSizeRe      = regexp.MustCompile(`(?m)^Physical size:\s*(\d+)x(\d+)\s*$`)
+	currentAppRe        = regexp.MustCompile(`([a-zA-Z0-9_.]+)/([a-zA-Z0-9_.$]+)`)
 )
 
-// ScreenSize returns the device resolution from `wm size`.
+const screenSizeCommand = "wm size; dumpsys window displays | grep 'init=' || true"
+
+// ScreenSize returns the current display coordinate space used by screenshots,
+// accessibility bounds and Android input events.
 //
-// It takes the FIRST match, so with a display override active it reports the
-// physical size rather than the effective one. That is arguably wrong, but every
-// tap coordinate is clamped against this value, so changing it would silently
-// shift every tap. Do not "fix" it here.
+// `wm size` alone is insufficient: it prints the physical size first when an
+// override is active, and its width/height stay in the panel's natural
+// orientation. WindowManager's `cur=WxH` value reflects both the effective
+// override and the current rotation. Older Android releases that do not expose
+// `cur=` fall back to Override size, then Physical size, then the first generic
+// WxH pair.
 func (c *Client) ScreenSize(ctx context.Context) (int, int, error) {
-	output, err := c.Shell(ctx, "wm size")
+	output, err := c.Shell(ctx, screenSizeCommand)
 	if err != nil {
 		return 0, 0, err
 	}
-	match := screenSizeRe.FindStringSubmatch(output)
-	if match == nil {
+	width, height, ok := parseScreenSize(output)
+	if !ok {
 		return 0, 0, errorf("Could not parse screen size from: %s", pyRepr(output))
+	}
+	return width, height, nil
+}
+
+func parseScreenSize(output string) (int, int, bool) {
+	for _, re := range []*regexp.Regexp{
+		currentScreenSizeRe,
+		overrideSizeRe,
+		physicalSizeRe,
+		screenSizeRe,
+	} {
+		if width, height, ok := parseSizeMatch(re.FindStringSubmatch(output)); ok {
+			return width, height, true
+		}
+	}
+	return 0, 0, false
+}
+
+func parseSizeMatch(match []string) (int, int, bool) {
+	if match == nil {
+		return 0, 0, false
 	}
 	width, werr := strconv.Atoi(match[1])
 	height, herr := strconv.Atoi(match[2])
 	if werr != nil || herr != nil {
-		return 0, 0, errorf("Could not parse screen size from: %s", pyRepr(output))
+		return 0, 0, false
 	}
-	return width, height, nil
+	return width, height, true
 }
 
 // AppInfo is the foreground app, as reported by dumpsys.

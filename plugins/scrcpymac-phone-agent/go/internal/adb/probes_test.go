@@ -258,7 +258,7 @@ func TestScreenSizeAndCurrentAppArgv(t *testing.T) {
 	if err != nil || w != 1080 || h != 2280 {
 		t.Fatalf("ScreenSize = %dx%d, %v", w, h, err)
 	}
-	fake.wantOneShellElement(t, 0, "wm size")
+	fake.wantOneShellElement(t, 0, screenSizeCommand)
 
 	app, err := client.CurrentApp(context.Background())
 	if err != nil {

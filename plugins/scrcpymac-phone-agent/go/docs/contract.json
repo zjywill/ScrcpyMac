@@ -1320,7 +1320,7 @@
       ],
       "notes": [
         "While streaming: backend=\"plugin-h264\", screen={width,height} from the native size, and an extra video={width,height,fps,codec}.",
-        "Otherwise: backend=\"adb\", screen={width,height} from `wm size`, no video key.",
+        "Otherwise: backend=\"adb\", screen={width,height} from the current WindowManager display coordinate space, no video key.",
         "foreground is always {package,activity,raw}."
       ]
     },
@@ -1383,6 +1383,7 @@
         "include_image=true -> content = [TextContent(json without base64), ImageContent(png)]. The ImageContent is {type:\"image\", data:<base64 png>, mimeType:\"image/png\"}.",
         "include_image=false -> content = [TextContent(json WITH a \"base64\" key)] only.",
         "format is always the literal \"png\"; size_bytes is len(png).",
+        "width and height are decoded from the PNG header and therefore match the exact screenshot coordinate space.",
         "On AdbError/OSError only a single TextContent with {\"ok\":false,\"error\":...} is emitted (no image block), still isError=false."
       ]
     },
@@ -2349,7 +2350,7 @@
         "Node object key order: index, text, content_desc, resource_id, class, clickable, bounds, center. Then, ONLY when noteworthy: scrollable(true), enabled(false), password(true), focused(true), selected(true), checkable(true)+checked(bool).",
         "center is [x,y] parsed from bounds \"[x1,y1][x2,y2]\" with integer floor division, or null.",
         "A node is kept only if it has text, content-desc, clickable, scrollable, \"EditText\" in class, or checkable.",
-        "degraded=true + hint \"UI tree looks incomplete (WebView/Compose/custom-drawn). Fall back to phone_screenshot for vision.\" when any class contains WebView OR fewer than 3 nodes are clickable-or-texted.",
+        "degraded=true + hint \"UI tree looks incomplete (WebView/Compose/custom-drawn). Fall back to phone_screenshot for vision.\" when any raw XML class contains WebView OR fewer than 3 compact nodes are clickable-or-texted.",
         "XML parse failure -> {ok:true, xml, serial, parse_error:true, degraded:true, hint:\"UI dump was empty or unparseable. Retry phone_ui_tree or fall back to phone_screenshot for vision.\"}.",
         "An empty dump is retried once after 300ms.",
         "Results are cached per PhoneActions instance and invalidated by every tap/swipe/key/type/paste/launch/select_device."
@@ -2529,7 +2530,7 @@
       "notes": [
         "matched is the compact ui_tree node; tap is the nested phone_tap payload.",
         "No selector at all -> \"Provide text, content_desc, resource_id, or class_name\".",
-        "Timeout -> \"Element not found within {timeout_s}s ({criteria}). Last tree had {n} nodes[, after {k} scroll(s)].\" The criteria rendering uses Python repr of a list of strings.",
+        "Timeout -> \"Element not found within {timeout_s}s ({criteria}). Last tree had {n} nodes[, after {k} scroll(s)].\" A degraded last tree appends its screenshot-fallback hint. The criteria rendering uses Python repr of a list of strings.",
         "Matched node without bounds -> \"Matched node has no tappable bounds ({criteria})\".",
         "Matching: substring by default, whole-string with exact=true; ANY specified attribute hits unless require_all=true; disabled nodes are skipped; index picks the Nth match.",
         "Polling: 0.4s base interval with 1.5^n backoff capped at 2.0s; a scroll (mid-screen swipe 70%->30% over 350ms + 0.4s settle) re-dumps immediately with no backoff."

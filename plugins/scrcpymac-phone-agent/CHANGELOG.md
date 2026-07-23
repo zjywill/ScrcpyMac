@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Screenshot metadata now uses the PNG's real pixel dimensions, keeping visual
+  taps accurate when Android display-size overrides are active
+- ADB tap mapping now follows WindowManager's current display size, including
+  rotation and effective overrides instead of the panel's physical dimensions
+- Non-scrolling WebView roots now mark `phone_ui_tree` as degraded even when
+  compact filtering removes the root node
+- Failed UI-tree searches now repeat the screenshot fallback hint when the last
+  tree is empty, unparseable, WebView-backed, or otherwise incomplete
+
 ## 0.7.2 — 2026-07-22
 
 - Keep the plugin loopback video server alive for the lifetime of the MCP process

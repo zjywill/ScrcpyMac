@@ -1101,7 +1101,7 @@ func TestPreviewPayloadEncodesPNG(t *testing.T) {
 		t.Errorf("frameHeight = %v, want 1140", got)
 	}
 	if got, _ := payload.Get("deviceWidth"); got != 1080 {
-		t.Errorf("deviceWidth = %v, want the wm size width", got)
+		t.Errorf("deviceWidth = %v, want the source PNG width", got)
 	}
 	if got, _ := payload.Get("mimeType"); got != "image/jpeg" {
 		t.Errorf("mimeType = %v", got)

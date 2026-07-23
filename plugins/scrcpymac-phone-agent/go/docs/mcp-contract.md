@@ -594,6 +594,8 @@ On `AdbError`/`OSError`: one text block `{"ok": false, "error": "..."}`, no imag
 
 `format` is always the literal `"png"`; `size_bytes` is `len(png)`; the PNG comes from
 `adb exec-out screencap -p` with a 30 s timeout.
+`width` and `height` are decoded from that PNG's IHDR, so they describe the exact
+image coordinate space even when Android has a display-size override.
 
 ---
 
@@ -833,7 +835,8 @@ Shape A.
 * XML parse failure → `ok, xml, serial, parse_error, degraded, hint` with
   `hint: "UI dump was empty or unparseable. Retry phone_ui_tree or fall back to phone_screenshot for vision."`
   and the cache is invalidated (never cache a broken dump)
-* degraded heuristic: any class contains `WebView`, **or** fewer than 3 nodes are
+* degraded heuristic: any raw XML node class contains `WebView` (including roots
+  removed by compact filtering), **or** fewer than 3 compact nodes are
   clickable-or-texted →
   `hint: "UI tree looks incomplete (WebView/Compose/custom-drawn). Fall back to phone_screenshot for vision."`
 
@@ -887,6 +890,7 @@ Shape A. Keys: `ok, matched, tap` — `matched` is the compact tree node, `tap` 
 * matched node without `center` → `Matched node has no tappable bounds ({criteria})`
 * timeout →
   `Element not found within {timeout_s}s ({criteria}). Last tree had {n} nodes[, after {k} scroll(s)].`
+  If the last tree is degraded, its screenshot-fallback hint is appended.
   The trailing scroll clause is present only when `scroll_to_find` is truthy.
   `{criteria}` is `NodeCriteria.describe()`: comma-joined `name=<python repr of a list of
   str>` for each non-empty selector in the order text, content_desc, resource_id, class,

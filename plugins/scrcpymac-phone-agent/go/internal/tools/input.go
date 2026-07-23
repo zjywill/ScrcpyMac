@@ -301,10 +301,8 @@ func (a *inputActions) clampPoint(ctx context.Context, x, y int) (int, int) {
 }
 
 // inputShot is the subset of actions._adb_screenshot()'s dict this file needs.
-// Width/Height come from `wm size`, not from the PNG header — replicated so the
-// failure modes line up: a screencap that succeeds while `wm size` fails still
-// counts as a failed screenshot, which is what selects tap()'s
-// "verification unavailable" branch.
+// Width/Height come from the PNG header so verification metadata stays in the
+// same coordinate space as the captured image.
 type inputShot struct {
 	Serial    string
 	Width     int
@@ -325,7 +323,7 @@ func (a *inputActions) screenshot(ctx context.Context) (*inputShot, error) {
 	if err != nil {
 		return nil, err
 	}
-	w, h, err := a.wmScreenSize(ctx)
+	w, h, err := deviceRequirePNGSize(data)
 	if err != nil {
 		return nil, err
 	}

@@ -151,16 +151,50 @@ func TestEnsureDeviceMessages(t *testing.T) {
 	}
 }
 
-func TestScreenSizeTakesTheFirstMatch(t *testing.T) {
-	// With an override active the physical size must win — every tap coordinate
-	// is clamped against it.
-	client := newFakeADB(t, "printf 'Physical size: 1080x2280\\r\\nOverride size: 720x1520\\r\\n'\n")
+func TestScreenSizeUsesCurrentDisplayCoordinates(t *testing.T) {
+	client := newFakeADB(t, "printf 'Physical size: 1080x2280\\r\\nOverride size: 720x1520\\r\\n    init=1080x2280 base=720x1520 cur=1520x720\\r\\n'\n")
 	w, h, err := client.ScreenSize(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if w != 1080 || h != 2280 {
-		t.Errorf("ScreenSize = %dx%d, want 1080x2280", w, h)
+	if w != 1520 || h != 720 {
+		t.Errorf("ScreenSize = %dx%d, want the rotated current size 1520x720", w, h)
+	}
+}
+
+func TestParseScreenSizeFallbackOrder(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		output     string
+		wantWidth  int
+		wantHeight int
+	}{
+		{
+			name:       "override beats physical without current display info",
+			output:     "Physical size: 1080x2280\nOverride size: 720x1520",
+			wantWidth:  720,
+			wantHeight: 1520,
+		},
+		{
+			name:       "physical size fallback",
+			output:     "Physical size: 1080x2280",
+			wantWidth:  1080,
+			wantHeight: 2280,
+		},
+		{
+			name:       "generic legacy fallback",
+			output:     "Display 0 is 480x800",
+			wantWidth:  480,
+			wantHeight: 800,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			width, height, ok := parseScreenSize(tc.output)
+			if !ok || width != tc.wantWidth || height != tc.wantHeight {
+				t.Fatalf("parseScreenSize(%q) = %dx%d, %v; want %dx%d, true",
+					tc.output, width, height, ok, tc.wantWidth, tc.wantHeight)
+			}
+		})
 	}
 }
 

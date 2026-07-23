@@ -115,7 +115,7 @@ func (f *deviceFake) defaultOutput(args []string) adb.Output {
 		}
 		command := args[1]
 		switch {
-		case command == "wm size":
+		case command == adbScreenSizeCommandForTest():
 			return adb.Output{Stdout: []byte(f.Screen)}
 		case strings.HasPrefix(command, "dumpsys window"):
 			return adb.Output{Stdout: []byte(f.Dumpsys)}
@@ -125,6 +125,10 @@ func (f *deviceFake) defaultOutput(args []string) adb.Output {
 		}
 	}
 	return adb.Output{Stderr: []byte("fake adb: unhandled " + strings.Join(args, " ")), ExitCode: 127}
+}
+
+func adbScreenSizeCommandForTest() string {
+	return "wm size; dumpsys window displays | grep 'init=' || true"
 }
 
 // Calls returns the recorded invocations with the adb path and -s serial
@@ -696,7 +700,7 @@ func TestPhoneScreenshotIncludesTheImageByDefault(t *testing.T) {
 		t.Fatalf("payload = %v", payload)
 	}
 	if payload["width"] != float64(1080) || payload["height"] != float64(2280) {
-		t.Fatalf("width/height must come from wm size: %v", payload)
+		t.Fatalf("width/height must come from the PNG header: %v", payload)
 	}
 
 	img, ok := res.Content[1].(*mcp.ImageContent)
@@ -709,6 +713,37 @@ func TestPhoneScreenshotIncludesTheImageByDefault(t *testing.T) {
 	// Raw bytes: a double-base64 bug shows up as a mismatch here.
 	if !reflect.DeepEqual(img.Data, fake.PNG) {
 		t.Fatalf("image data is not the captured PNG (%d vs %d bytes)", len(img.Data), len(fake.PNG))
+	}
+}
+
+func TestPhoneScreenshotUsesPNGDimensionsWhenDisplaySizeDiffers(t *testing.T) {
+	session, fake := deviceTestSession(t)
+	fake.PNG = devicePNGFixture(t, 720, 1520)
+	fake.Screen = "Physical size: 1080x2280\r\nOverride size: 720x1520\r\n"
+
+	payload := deviceDecode(t, deviceText(t, deviceCall(t, session, "phone_screenshot", nil)))
+	if payload["width"] != float64(720) || payload["height"] != float64(1520) {
+		t.Fatalf("screenshot metadata = %vx%v, want PNG size 720x1520",
+			payload["width"], payload["height"])
+	}
+	for _, call := range fake.Calls() {
+		if len(call) == 2 && call[0] == "shell" && call[1] == adbScreenSizeCommandForTest() {
+			t.Fatal("phone_screenshot must not replace PNG dimensions with wm/dumpsys dimensions")
+		}
+	}
+}
+
+func TestPhoneScreenshotRejectsAnInvalidPNG(t *testing.T) {
+	session, fake := deviceTestSession(t)
+	fake.PNG = []byte("not a png")
+
+	res := deviceCall(t, session, "phone_screenshot", nil)
+	if len(res.Content) != 1 {
+		t.Fatalf("invalid PNG must return one error text block, got %d", len(res.Content))
+	}
+	payload := deviceDecode(t, deviceText(t, res))
+	if payload["ok"] != false || !strings.Contains(payload["error"].(string), "could not decode screenshot PNG") {
+		t.Fatalf("payload = %v", payload)
 	}
 }
 
@@ -1121,8 +1156,12 @@ func TestLiveDeviceReadOnlyTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("captured bytes are not a PNG: %v", err)
 	}
-	t.Logf("captured %dx%d PNG, %d bytes (wm size reports %vx%v)",
+	t.Logf("captured %dx%d PNG, %d bytes (tool reports %vx%v)",
 		width, height, len(decoded), shot["width"], shot["height"])
+	if shot["width"] != float64(width) || shot["height"] != float64(height) {
+		t.Fatalf("screenshot metadata %vx%v does not match PNG %dx%d",
+			shot["width"], shot["height"], width, height)
+	}
 	if float64(len(decoded)) != shot["size_bytes"] {
 		t.Fatalf("size_bytes = %v, want %d", shot["size_bytes"], len(decoded))
 	}

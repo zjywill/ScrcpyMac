@@ -153,14 +153,10 @@ _adb_screenshot():
 
 Key facts:
 
-* **Width/height come from `wm size`, NOT from the PNG header.** They can therefore disagree
-  with the actual image on devices with a display override / different capture size. Keep it —
-  `tap_relative`/`tap_image` map into the same `wm size` space, so the two are consistent
-  with each other, and `phone_screenshot`'s reported `width`/`height` are what the model uses
-  to compute relative coordinates.
-  * `wm size` prints `Physical size: 1080x2280` and, when an override is set, a second
-    `Override size: WxH` line. The regex is a `search` for the **first** `\d+x\d+`, so
-    **Physical size always wins**. Replicate exactly (Go: `regexp.FindStringSubmatch`).
+* **Go correction:** width/height come from the PNG header, so they always match
+  the image coordinate space. Coordinate mapping uses WindowManager's current
+  `cur=WxH` size, which reflects display overrides and rotation; older Android
+  versions fall back to `Override size`, then `Physical size`.
 * `png_bytes` is an in-process-only key. `server.py` uses it to build the MCP image content
   block and then does **not** include `base64` in the JSON. When `include_image=false`, the
   JSON does include `base64`. `json_result` is never called on a dict containing `png_bytes`.
@@ -1331,7 +1327,7 @@ selector semantics — **this document is the only specification of those.**
 | **BUG-4** | `launch_app` | `package`/`activity` are interpolated into the device shell command unquoted → command injection via a tool argument. | **FIX** by wrapping with `shellQuote`; a no-op for every legitimate package/component string. |
 | **BUG-5** | `long_press` | Result reports `"action": "swipe"`, not `"long_press"`, and carries `from`/`to` instead of `x`/`y`. | **REPLICATE.** It is a visible part of the contract and the model already reads it fine. |
 | **BUG-6** | `ui_tree` cache | Not invalidated by `shell()`, has no TTL, and the first `_poll_for_node` iteration reads it. A `phone_shell("input tap …")` followed by `phone_find_and_tap` matches a stale tree. | **REPLICATE.** The staleness is load-bearing for latency and `force_refresh` covers the retry. Consider adding a short TTL only if a device-validation run shows it causes misses; that would be a deliberate, documented change. |
-| **BUG-7** | `screenshot()` width/height | Come from `wm size`, not from the PNG. Can disagree with the actual image on devices with a size override. | **REPLICATE.** Consistency with `tap_relative`/`tap_image` matters more than agreement with the bitmap. |
+| **BUG-7** | `screenshot()` width/height | Python used `wm size`, so metadata could disagree with the actual image and shift visual taps under a display-size override. | **FIXED IN GO.** Decode PNG dimensions and map taps through WindowManager's current display size. |
 | **BUG-8** | `tap`/`swipe` streaming paths | `ScrcpyRuntimeError` from `runtime.tap_relative`/`swipe_relative` is **not** wrapped into `AdbError`, and `server.py` catches only `(AdbError, OSError)` — so it escapes the tool handler. `key`/`paste` **do** wrap it. | **FIX.** Wrap runtime errors from the tap and swipe paths the same way `key`/`paste` do, so the tool returns `{"ok": false, "error": "plugin scrcpy stream is not running"}` instead of an unhandled exception. In Go, make the top-level tool wrapper convert *any* error to the `{ok:false,error}` shape — which fixes this class of leak permanently. |
 | **BUG-9** | `type_text` `%` escaping | A literal `%` is sent as `%25` and most Android `input text` builds do not decode `%XX` other than `%s`, so `50%` is typed as `50%25`. | **REPLICATE.** The tool is explicitly documented as ASCII-only and short; changing it risks breaking the space handling, which is the escape that actually matters. `phone_paste` is the sanctioned path for anything real. |
 | **BUG-10** | duplicate tap points near screen edges | `_clamp_device_point` can collapse two offsets onto the same pixel, so the same point is tapped twice and appears twice in `attempts`. | **REPLICATE.** De-duping would change the `attempts` array shape and could reduce the retry count below what the caller asked for. |

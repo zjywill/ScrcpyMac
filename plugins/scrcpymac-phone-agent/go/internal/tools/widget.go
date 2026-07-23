@@ -646,8 +646,7 @@ func widgetSelectedSerial(env *mcpserver.Env, status *jsonresult.Obj) string {
 type widgetShot struct {
 	Serial  string
 	Backend string
-	// Width/Height come from `wm size`, NOT from the PNG header. Every relative
-	// coordinate is mapped into that same space, so they have to agree.
+	// Width/Height are the exact source-image coordinate space.
 	Width, Height int
 	// PNG is the raw screencap.
 	PNG []byte
@@ -659,9 +658,9 @@ type widgetShot struct {
 	FrameWidth, FrameHeight int
 }
 
-// widgetADBScreenshot is PhoneActions._adb_screenshot: a full-resolution PNG
-// plus the screen size. preview_frame ignores max_width/quality on this path —
-// the downscale happens afterwards, in widgetPreviewPayload.
+// widgetADBScreenshot is a full-resolution PNG plus its exact pixel size.
+// preview_frame ignores max_width/quality on this path — the downscale happens
+// afterwards, in widgetPreviewPayload.
 func widgetADBScreenshot(ctx context.Context, env *mcpserver.Env) (widgetShot, error) {
 	client, err := env.ADB()
 	if err != nil {
@@ -675,7 +674,7 @@ func widgetADBScreenshot(ctx context.Context, env *mcpserver.Env) (widgetShot, e
 	if err != nil {
 		return widgetShot{}, err
 	}
-	width, height, err := client.ScreenSize(ctx)
+	width, height, err := deviceRequirePNGSize(png)
 	if err != nil {
 		return widgetShot{}, err
 	}

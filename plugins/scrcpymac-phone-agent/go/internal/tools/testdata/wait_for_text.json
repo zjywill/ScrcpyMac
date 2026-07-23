@@ -21,7 +21,7 @@
     "text": "Close",
     "timeout_s": 1.0,
     "result": null,
-    "error": "Element not found within 1.0s (text=['Close']). Last tree had 4 nodes."
+    "error": "Element not found within 1.0s (text=['Close']). Last tree had 4 nodes. UI tree looks incomplete (WebView/Compose/custom-drawn). Fall back to phone_screenshot for vision."
   },
   {
     "name": "miss",

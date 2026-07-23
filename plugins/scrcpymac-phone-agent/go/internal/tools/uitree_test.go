@@ -2,20 +2,18 @@ package tools
 
 // Golden tests for the accessibility-tree group.
 //
-// Every expected value in testdata/*.json was produced by running the REAL
-// Python implementation (server/phone_agent/actions.py) over the XML fixtures in
-// testdata/ — see testdata/gen_goldens.py, which is the only supported way to
-// regenerate them. Nothing here re-derives the expectations from the Go code, so
-// a divergence between the two implementations fails the build rather than
-// showing up on a device.
+// Most expected values in testdata/*.json originated from the former Python
+// implementation. The Go implementation intentionally improves degraded-tree
+// detection by inspecting raw WebView nodes before compaction, so those goldens
+// now describe the shipped plugin behavior.
 //
 // The fixtures themselves came off the attached OnePlus 6 (serial 2f019965,
 // Chinese locale):
 //
 //	settings_home.xml      Settings homepage — an ordinary app, not degraded
 //	settings_display.xml   Display settings — the only real switch (checkable+checked)
-//	chrome_example.xml     Chrome on example.com — the page's WebView node is
-//	                       dropped by the inclusion filter, so NOT degraded
+//	chrome_example.xml     Chrome on example.com — its non-scrolling WebView
+//	                       root is filtered from nodes but still degraded
 //	chrome_webview.xml     Chrome on info.cern.ch — the WebView scrolls, so it
 //	                       survives the filter and the tree IS degraded
 //	sparse_dialog.xml      synthetic Compose-style screen: 2 interactive nodes,
@@ -225,7 +223,7 @@ func TestUITreeDegradedTriggers(t *testing.T) {
 	}{
 		{"settings_home.xml", false, "28 nodes, 26 interactive, no WebView"},
 		{"settings_display.xml", false, "ordinary settings list"},
-		{"chrome_example.xml", false, "the page WebView is not scrollable, so the filter drops it"},
+		{"chrome_example.xml", true, "the raw WebView root is detected before the compact filter drops it"},
 		{"chrome_webview.xml", true, "a scrollable WebView survives the filter"},
 		{"sparse_dialog.xml", true, "only 2 interactive nodes"},
 		{"flags.xml", false, "plenty of interactive nodes, no WebView"},
@@ -1021,6 +1019,18 @@ func TestUITreeParseAcceptsAWellFormedDumpWithNoNodes(t *testing.T) {
 	}
 	if got := jsonresult.Text(tree.payload()); !strings.Contains(got, `"nodes": []`) {
 		t.Errorf("an empty node list must serialise as [], not null:\n%s", got)
+	}
+}
+
+func TestUITreeDetectsFilteredWebViewRoots(t *testing.T) {
+	tree := uitreeBuildTree(uitreeFixture(t, "chrome_example.xml"), uitreeTestSerial)
+	if !tree.Degraded {
+		t.Fatal("a raw WebView root must mark the tree degraded even when compaction drops that root")
+	}
+	for _, node := range tree.Nodes {
+		if strings.Contains(node.Class, "WebView") {
+			t.Fatal("fixture must prove detection from raw XML, not from a kept compact node")
+		}
 	}
 }
 
