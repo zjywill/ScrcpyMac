@@ -3,16 +3,12 @@
 //
 // # Where the HTML comes from
 //
-// The widget is built from ui/src by scripts/build-ui.sh, which writes
-// server/phone_agent/static/scrcpymac-app.html. //go:embed cannot follow
-// symlinks or reach outside the module directory, so a copy lives at
-// assets/scrcpymac-app.html and is committed: a Marketplace build must never
-// depend on npm being reachable.
+// The widget is built from ui/src by scripts/build-ui.sh directly into
+// assets/scrcpymac-app.html. It is committed because a Marketplace install must
+// never depend on npm being reachable.
 //
-// Refresh it with `make widget` (or scripts/build-go.sh, which copies it as part
-// of every build). The ordering is: scripts/build-ui.sh, then the copy, then the
-// Go build. Building Go without refreshing embeds a stale widget — the binary
-// still works, it just serves the previous UI.
+// Refresh it with `make widget` or scripts/build-go.sh before compiling release
+// binaries. Building Go without refreshing embeds the previous UI.
 package widget
 
 import (

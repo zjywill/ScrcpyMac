@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/base64"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -11,12 +12,12 @@ import (
 	"github.com/zjywill/scrcpyMac/phone-agent/internal/widget"
 )
 
-// The plugin-owned scrcpy stream: start, status, stop — plus the adapter that
+// The plugin-owned scrcpy stream: start, status, pull, stop — plus the adapter that
 // plugs the real runtime into the StreamRuntime seam in widget_runtime.go, so
 // every other app tool switches from adb to the scrcpy control socket the moment
 // a session comes up.
 //
-// All three tools are app-only (AppOnlyMeta) and use result Shape C — a
+// All four tools are app-only (AppOnlyMeta) and use result Shape C — a
 // hand-built structuredContent object plus a human sentence — because the Python
 // returned CallToolResult directly and therefore declared no outputSchema.
 //
@@ -96,6 +97,28 @@ func registerStreamTools(s *mcp.Server, env *mcpserver.Env) error {
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
+		Name:        "scrcpymac_ui_stream_pull",
+		Title:       "Pull standalone ScrcpyMac H.264 packets",
+		Description: "Long-poll a bounded H.264 packet batch through the MCP Apps bridge.",
+		Annotations: Annotations(true, false, false, false),
+		Meta:        AppOnlyMeta,
+		InputSchema: ObjectSchema("scrcpymac_ui_stream_pullArguments",
+			Prop{Name: "max_bytes", Type: "integer", Title: "Max Bytes", Default: 524288},
+			Prop{Name: "timeout_ms", Type: "integer", Title: "Timeout Ms", Default: 250},
+		),
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in streamPullIn) (*mcp.CallToolResult, any, error) {
+		batch := runtime.PullPackets(ctx, in.MaxBytes, in.TimeoutMS)
+		payload := streamPullPayload(batch, runtime.Diagnostics())
+		result, _, _ := Structured(payload, "Pulled a standalone ScrcpyMac H.264 packet batch.")
+		result.Meta = mcp.Meta{
+			"scrcpymac/h264": map[string]any{
+				"dataBase64": base64.StdEncoding.EncodeToString(batch.Data),
+			},
+		}
+		return result, nil, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
 		Name:        "scrcpymac_ui_stop_stream",
 		Title:       "Stop standalone ScrcpyMac stream",
 		Description: "Stop the plugin-owned scrcpy session and release its adb forward.",
@@ -120,6 +143,89 @@ type streamStartIn struct {
 
 // streamNoArgs is the argument type of the two no-parameter tools.
 type streamNoArgs struct{}
+
+type streamPullIn struct {
+	MaxBytes  int `json:"max_bytes,omitempty"`
+	TimeoutMS int `json:"timeout_ms,omitempty"`
+}
+
+// streamPullPayload keeps the structured result compact and diagnostic. The
+// H.264 bytes themselves live only in CallToolResult._meta, which MCP Apps
+// delivers to the component without exposing the batch to the model.
+func streamPullPayload(batch scrcpy.PullBatch, diagnostics scrcpy.Diagnostics) *jsonresult.Obj {
+	status := batch.Status
+	return jsonresult.Of(
+		"ok", streamObjBool(status, "ok"),
+		"state", streamObjString(status, "state"),
+		"backend", streamObjString(status, "backend"),
+		"encoding", streamObjString(status, "encoding"),
+		"error", streamObjString(status, "error"),
+		"fps", streamObjFloat(status, "fps"),
+		"frames", streamObjInt(status, "frames"),
+		"frameWidth", diagnostics.FrameWidth,
+		"frameHeight", diagnostics.FrameHeight,
+		"codec", diagnostics.Codec,
+		"transport", "mcp",
+		"packetCount", batch.PacketCount,
+		"sizeBytes", len(batch.Data),
+		"droppedGops", batch.DroppedGOPs,
+		"droppedPackets", batch.DroppedPackets,
+	)
+}
+
+func streamObjString(payload *jsonresult.Obj, key string) string {
+	if payload == nil {
+		return ""
+	}
+	value, _ := payload.Get(key)
+	result, _ := value.(string)
+	return result
+}
+
+func streamObjBool(payload *jsonresult.Obj, key string) bool {
+	if payload == nil {
+		return false
+	}
+	value, _ := payload.Get(key)
+	result, _ := value.(bool)
+	return result
+}
+
+func streamObjInt(payload *jsonresult.Obj, key string) int {
+	if payload == nil {
+		return 0
+	}
+	value, _ := payload.Get(key)
+	switch n := value.(type) {
+	case int:
+		return n
+	case int64:
+		return int(n)
+	case float64:
+		return int(n)
+	default:
+		return 0
+	}
+}
+
+func streamObjFloat(payload *jsonresult.Obj, key string) jsonresult.Float {
+	if payload == nil {
+		return jsonresult.Float(0)
+	}
+	value, _ := payload.Get(key)
+	switch n := value.(type) {
+	case jsonresult.Float:
+		return n
+	case float64:
+		return jsonresult.Float(n)
+	case float32:
+		return jsonresult.Float(n)
+	case int:
+		return jsonresult.Float(n)
+	default:
+		return jsonresult.Float(0)
+	}
+}
 
 // inputStreamAdapter bridges *scrcpy.Runtime to the InputRuntime interface the
 // model-visible input tools depend on.

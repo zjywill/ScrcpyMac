@@ -218,7 +218,8 @@ func TestStdioHandshakeOverTheRealBinary(t *testing.T) {
 	// The exhaustive comparison lives in internal/mcpserver's contract test;
 	// here it is enough that the shipped binary carries the whole surface.
 	for _, want := range []string{
-		"open_scrcpymac", "scrcpymac_ui_state", "scrcpymac_ui_snapshot",
+		"open_scrcpymac", "scrcpymac_ui_state", "scrcpymac_ui_stream_pull",
+		"scrcpymac_ui_snapshot",
 		"phone_backend", "phone_doctor", "phone_tap", "phone_ui_tree",
 		"phone_send_wechat", "phone_connect_wifi",
 	} {
@@ -226,11 +227,11 @@ func TestStdioHandshakeOverTheRealBinary(t *testing.T) {
 			t.Errorf("tools/list is missing %q", want)
 		}
 	}
-	// Exactly 36, not "at least": the shipped binary must publish the Python
-	// server's surface and nothing more, or Codex can tell the two apart.
+	// Exactly 37, not "at least": the shipped binary must publish the frozen
+	// plugin surface and nothing more.
 	// Diagnostics are opt-in and cleared in cmd.Env above.
-	if len(toolsResult.Tools) != 36 {
-		t.Errorf("tools/list returned %d tools, want exactly the 36 in the contract", len(toolsResult.Tools))
+	if len(toolsResult.Tools) != 37 {
+		t.Errorf("tools/list returned %d tools, want exactly the 37 in the contract", len(toolsResult.Tools))
 	}
 
 	// --- resources/list ---------------------------------------------------

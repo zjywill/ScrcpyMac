@@ -37,6 +37,10 @@ type Packet struct {
 	PTS uint64
 	// Size is the H.264 payload length, without either header.
 	Size int
+	// Body is the 14-byte ScrcpyMac application header followed by the H.264
+	// payload. The MCP App bridge transports this exact byte sequence without
+	// the surrounding WebSocket frame.
+	Body []byte
 	// Frame is the ready-to-send WebSocket frame.
 	Frame []byte
 }
@@ -77,12 +81,20 @@ func EncodeStreamPacket(isConfig, isKey bool, pts uint64, payload []byte) *Packe
 	body := WSHeaderLength + len(payload)
 	frame := make([]byte, 0, wsHeaderLen(body)+body)
 	frame = appendWSHeader(frame, opBinary, body)
+	bodyOffset := len(frame)
 	frame = append(frame, WSPacketVersion, flags)
 	frame = binary.BigEndian.AppendUint64(frame, pts)
 	frame = binary.BigEndian.AppendUint32(frame, uint32(len(payload)))
 	frame = append(frame, payload...)
 
-	return &Packet{Config: isConfig, Key: isKey, PTS: pts, Size: len(payload), Frame: frame}
+	return &Packet{
+		Config: isConfig,
+		Key:    isKey,
+		PTS:    pts,
+		Size:   len(payload),
+		Body:   frame[bodyOffset:],
+		Frame:  frame,
+	}
 }
 
 // ErrShortPacket is returned by DecodeStreamPacket for a truncated or malformed

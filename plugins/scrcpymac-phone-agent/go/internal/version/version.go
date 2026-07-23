@@ -1,10 +1,9 @@
 // Package version carries the plugin version and build stamp.
 //
 // The version string is part of the plugin's packaging contract:
-// server/tests/test_packaging.py asserts that .agents/plugins/marketplace.json
-// (twice), .codex-plugin/plugin.json, .cursor-plugin/plugin.json,
-// server/pyproject.toml, ui/package.json and server/phone_agent/__init__.py all
-// agree. This constant joins that set — bump it together with the others.
+// internal/packaging asserts that .agents/plugins/marketplace.json,
+// .codex-plugin/plugin.json, .cursor-plugin/plugin.json, ui/package.json and
+// this constant agree.
 package version
 
 import (
@@ -36,8 +35,7 @@ func Set(v, commit string) {
 // String returns the bare version, e.g. "0.7.2".
 func String() string { return Version }
 
-// CLI is what `phone-agent version` prints, matching the Python launcher's
-// "scrcpymac-phone-agent 0.7.2".
+// CLI is what `phone-agent version` prints.
 func CLI() string { return "scrcpymac-phone-agent " + Version }
 
 // Describe is the doctor "binary" check detail, e.g.

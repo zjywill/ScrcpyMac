@@ -1,10 +1,5 @@
 # Linux adb is a local dev/CI download. The universal macOS adb is shipped.
 bin/linux/**/adb
-__pycache__/
-*.py[cod]
-*.egg-info/
-.venv/
-.runtime-bootstrap.lock/
 node_modules/
 dist/
 build/

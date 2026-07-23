@@ -2,7 +2,10 @@ package tools
 
 import (
 	"context"
+	"strings"
 	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/zjywill/scrcpyMac/phone-agent/internal/mcpserver"
 	"github.com/zjywill/scrcpyMac/phone-agent/internal/scrcpy"
@@ -101,5 +104,63 @@ func TestStreamRegistrationInstallsEverySeam(t *testing.T) {
 		t.Errorf("widget CSP port = %d after the listener bound on %d; registerStreamTools "+
 			"did not install the loopback observer, so a late bind never reaches the "+
 			"widget's connectDomains", widget.LoopbackPort(), port)
+	}
+}
+
+func TestStreamPullReturnsPacketBytesOnlyInResultMeta(t *testing.T) {
+	registry := mcpserver.NewRegistry()
+	registry.Add(mcpserver.Registration{
+		Name:  "scrcpy-stream",
+		Order: mcpserver.OrderAppTools + 10,
+		Apply: registerStreamTools,
+	})
+	server, err := mcpserver.New(context.Background(), mcpserver.Options{Registry: registry})
+	if err != nil {
+		t.Fatalf("mcpserver.New: %v", err)
+	}
+	// Do not shut down the process-wide runtime here. No stream was started, so
+	// there are no device resources to release.
+
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.MCP.Connect(context.Background(), serverTransport, nil)
+	if err != nil {
+		t.Fatalf("server connect: %v", err)
+	}
+	t.Cleanup(func() { _ = serverSession.Close() })
+
+	session, err := mcp.NewClient(&mcp.Implementation{Name: "stream-pull-test", Version: "0"}, nil).
+		Connect(context.Background(), clientTransport, nil)
+	if err != nil {
+		t.Fatalf("client connect: %v", err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "scrcpymac_ui_stream_pull",
+		Arguments: map[string]any{
+			"max_bytes":  524288,
+			"timeout_ms": 1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("tools/call: %v", err)
+	}
+
+	transport, ok := result.Meta["scrcpymac/h264"].(map[string]any)
+	if !ok {
+		t.Fatalf("result _meta is missing scrcpymac/h264: %#v", result.Meta)
+	}
+	if _, ok := transport["dataBase64"].(string); !ok {
+		t.Fatalf("dataBase64 is missing or not a string: %#v", transport)
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("content blocks = %d, want 1 text block", len(result.Content))
+	}
+	text, ok := result.Content[0].(*mcp.TextContent)
+	if !ok {
+		t.Fatalf("content[0] = %T, want TextContent", result.Content[0])
+	}
+	if strings.Contains(text.Text, "dataBase64") {
+		t.Fatal("H.264 transport metadata leaked into model-visible content")
 	}
 }

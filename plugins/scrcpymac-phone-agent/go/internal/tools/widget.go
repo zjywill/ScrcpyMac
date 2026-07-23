@@ -352,7 +352,7 @@ func StreamDiagnosticsEnabled() bool {
 // It is OFF by default because it is model-visible, and a 25th phone_* tool is
 // something Codex can see: the migration's hard constraint is that the Go server
 // is indistinguishable from the Python one, and docs/contract.json freezes the
-// surface at 36 tools. Exporting PHONE_AGENT_STREAM_DIAGNOSTICS=1 turns it on
+// surface at 37 tools. Exporting PHONE_AGENT_STREAM_DIAGNOSTICS=1 turns it on
 // for a debugging session without changing what a Marketplace install ships.
 func registerWidgetDiagnostics(s *mcp.Server, _ *mcpserver.Env) error {
 	if !StreamDiagnosticsEnabled() {

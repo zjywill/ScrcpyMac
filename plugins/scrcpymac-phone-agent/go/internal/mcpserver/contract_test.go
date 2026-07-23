@@ -1,8 +1,7 @@
 // Contract test: the migration safety net.
 //
-// docs/contract.json is the frozen MCP surface of the Python server, captured
-// from the live process rather than read off the source. This test builds the
-// real Go server — the package-level registry that internal/tools populates from
+// docs/contract.json is the frozen MCP surface of the shipped plugin. This test
+// builds the real Go server — the package-level registry that internal/tools populates from
 // init(), the same one cmd/phone-agent uses — drives it over a real MCP session,
 // and compares what a client actually receives against that file, field by
 // field.
@@ -62,7 +61,7 @@ const contractLoopbackPort = 51234
 // difference" regression this file exists to catch.
 //
 // The entries are ALLOWANCES, not expectations: every one of them must be
-// opt-in, so a default build publishes exactly the contract's 36 tools. See
+// opt-in, so a default build publishes exactly the contract's 37 tools. See
 // TestDefaultSurfaceIsExactlyTheContract, which fails if any of them registers
 // itself without being asked.
 var deliberateAdditions = map[string]string{
@@ -339,8 +338,8 @@ func TestContractToolSetIsExact(t *testing.T) {
 	if len(unexpected) > 0 {
 		t.Errorf("tools registered but NOT in docs/contract.json and not declared in "+
 			"deliberateAdditions (%d): %v\n"+
-			"Codex must not be able to tell the Go server from the Python one. Either drop the "+
-			"tool, hide it with tools.AppOnlyMeta, or add it to deliberateAdditions with a reason.",
+			"Either drop the tool, add it to the frozen contract, or declare it as an "+
+			"intentional opt-in addition.",
 			len(unexpected), unexpected)
 	}
 
@@ -377,8 +376,8 @@ func TestContractToolSetIsExact(t *testing.T) {
 }
 
 // TestDefaultSurfaceIsExactlyTheContract is the strict form of the migration's
-// hard constraint: with no environment set, a client must see the Python
-// server's 36 tools and nothing else. Every deliberate addition therefore has to
+// hard constraint: with no environment set, a client must see the plugin's
+// 37 contract tools and nothing else. Every deliberate addition therefore has to
 // be opt-in; one that registers itself unconditionally fails here.
 func TestDefaultSurfaceIsExactlyTheContract(t *testing.T) {
 	doc := loadContract(t)

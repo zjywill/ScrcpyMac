@@ -16,6 +16,7 @@ import {
   createIcons,
 } from "lucide";
 
+import packageInfo from "../package.json";
 import "./styles.css";
 
 type ToolContent = {
@@ -25,6 +26,7 @@ type ToolContent = {
 
 type ToolResult = {
   isError?: boolean;
+  _meta?: Record<string, unknown>;
   structuredContent?: unknown;
   content?: ToolContent[];
 };
@@ -85,6 +87,16 @@ type WsPacket = {
   payload: Uint8Array;
 };
 
+type StreamPullPayload = StreamStatus & {
+  transport: "mcp";
+  packetCount: number;
+  sizeBytes: number;
+  droppedGops: number;
+  droppedPackets: number;
+};
+
+const APP_VERSION = packageInfo.version;
+
 const appRoot = document.querySelector<HTMLDivElement>("#app");
 if (!appRoot) throw new Error("Missing ScrcpyMac app root.");
 
@@ -93,8 +105,11 @@ appRoot.innerHTML = `
     <aside class="sidebar" aria-label="ScrcpyMac controls">
       <header class="brand">
         <span class="brand-mark"><i data-lucide="monitor-smartphone"></i></span>
-        <span>
-          <strong>ScrcpyMac</strong>
+        <span class="brand-copy">
+          <span class="brand-title">
+            <strong>ScrcpyMac</strong>
+            <span class="brand-version">v${APP_VERSION}</span>
+          </span>
           <small>Standalone Android workspace</small>
         </span>
       </header>
@@ -293,6 +308,8 @@ let streamOpenTimer: number | null = null;
 let pointerStart: { x: number; y: number; time: number } | null = null;
 let currentState: UiState | null = null;
 let webSocket: WebSocket | null = null;
+let h264Transport: "websocket" | "mcp" | null = null;
+let pullGeneration = 0;
 let videoDecoder: VideoDecoder | null = null;
 let h264Config: Uint8Array | null = null;
 let lastFrameAt = 0;
@@ -313,7 +330,10 @@ function parseTextPayload(result: ToolResult): unknown {
   }
 }
 
-async function callTool<T>(name: string, args: Record<string, unknown> = {}): Promise<T> {
+async function callToolResult<T>(
+  name: string,
+  args: Record<string, unknown> = {},
+): Promise<{ payload: T; meta?: Record<string, unknown> }> {
   if (!mcpApp) throw new Error("Codex host bridge is not connected.");
   const result = (await mcpApp.callServerTool({
     name,
@@ -328,7 +348,11 @@ async function callTool<T>(name: string, args: Record<string, unknown> = {}): Pr
     throw new Error(message);
   }
   if (!payload) throw new Error(`ScrcpyMac tool ${name} returned no structured data.`);
-  return payload;
+  return { payload, meta: result._meta };
+}
+
+async function callTool<T>(name: string, args: Record<string, unknown> = {}): Promise<T> {
+  return (await callToolResult<T>(name, args)).payload;
 }
 
 function setActivity(message: string, tone: "normal" | "error" = "normal"): void {
@@ -476,6 +500,13 @@ function closeWebSocket(): void {
   firstFrameReject = null;
 }
 
+function closeH264Transport(): void {
+  pullGeneration += 1;
+  h264Transport = null;
+  closeWebSocket();
+  closeDecoder();
+}
+
 function splitAnnexB(data: Uint8Array): Uint8Array[] {
   const starts: Array<{ index: number; prefix: number }> = [];
   for (let index = 0; index + 3 <= data.length; index += 1) {
@@ -534,6 +565,33 @@ function parseWsPacket(buffer: ArrayBuffer): WsPacket {
     timestamp,
     payload: new Uint8Array(buffer, WS_PACKET_HEADER_BYTES, payloadLength),
   };
+}
+
+function decodeBase64(value: string): Uint8Array {
+  const decoded = atob(value);
+  const bytes = new Uint8Array(decoded.length);
+  for (let index = 0; index < decoded.length; index += 1) {
+    bytes[index] = decoded.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function decodePacketBatch(data: Uint8Array): void {
+  let offset = 0;
+  while (offset < data.byteLength) {
+    if (data.byteLength - offset < WS_PACKET_HEADER_BYTES) {
+      throw new Error("Received a truncated ScrcpyMac H.264 packet batch.");
+    }
+    const view = new DataView(data.buffer, data.byteOffset + offset);
+    const payloadLength = view.getUint32(10, false);
+    const packetLength = WS_PACKET_HEADER_BYTES + payloadLength;
+    if (offset + packetLength > data.byteLength) {
+      throw new Error("ScrcpyMac H.264 packet batch length mismatch.");
+    }
+    const packet = data.slice(offset, offset + packetLength);
+    decodePacket(parseWsPacket(packet.buffer));
+    offset += packetLength;
+  }
 }
 
 function configureDecoder(codec: string): void {
@@ -620,14 +678,17 @@ function applyStreamStatus(status: StreamStatus): void {
   }
 }
 
-async function connectH264Stream(status: StreamStatus): Promise<void> {
+async function connectWebSocketH264(status: StreamStatus): Promise<void> {
   if (!("VideoDecoder" in window)) {
     throw new Error("WebCodecs VideoDecoder is unavailable in this Codex build.");
   }
   if (!status.streamUrl) throw new Error("Plugin runtime did not return a stream URL.");
 
   return new Promise<void>((resolve, reject) => {
-    firstFrameResolve = resolve;
+    firstFrameResolve = () => {
+      h264Transport = "websocket";
+      resolve();
+    };
     firstFrameReject = reject;
     const socket = new WebSocket(status.streamUrl as string);
     socket.binaryType = "arraybuffer";
@@ -665,8 +726,60 @@ async function connectH264Stream(status: StreamStatus): Promise<void> {
       reject(new Error("Codex could not open the plugin loopback H.264 stream."));
     });
     socket.addEventListener("close", () => {
-      if (previewRunning && previewMode === "h264") {
+      if (previewRunning && previewMode === "h264" && h264Transport === "websocket") {
         void fallBackToJpeg("Standalone H.264 stream closed.");
+      }
+    });
+  });
+}
+
+async function pullH264Packets(generation: number): Promise<void> {
+  while (
+    previewRunning &&
+    previewMode === "h264" &&
+    generation === pullGeneration
+  ) {
+    const result = await callToolResult<StreamPullPayload>("scrcpymac_ui_stream_pull", {
+      max_bytes: 524288,
+      timeout_ms: 250,
+    });
+    applyStreamStatus(result.payload);
+    droppedGroups = result.payload.droppedGops || 0;
+    if (result.payload.state !== "streaming") {
+      throw new Error(result.payload.error || "Standalone H.264 stream stopped.");
+    }
+    const transportMeta = result.meta?.["scrcpymac/h264"] as
+      | { dataBase64?: unknown }
+      | undefined;
+    const dataBase64 =
+      typeof transportMeta?.dataBase64 === "string" ? transportMeta.dataBase64 : "";
+    if (dataBase64) decodePacketBatch(decodeBase64(dataBase64));
+  }
+}
+
+async function connectMcpH264(status: StreamStatus): Promise<void> {
+  if (!("VideoDecoder" in window)) {
+    throw new Error("WebCodecs VideoDecoder is unavailable in this Codex build.");
+  }
+  applyStreamStatus(status);
+  const generation = ++pullGeneration;
+  return new Promise<void>((resolve, reject) => {
+    firstFrameResolve = () => {
+      h264Transport = "mcp";
+      resolve();
+    };
+    firstFrameReject = reject;
+    streamOpenTimer = window.setTimeout(() => {
+      reject(new Error("Timed out waiting for the first H.264 frame over the MCP bridge."));
+    }, 8000);
+    void pullH264Packets(generation).catch((error) => {
+      if (generation !== pullGeneration) return;
+      const resolved = error instanceof Error ? error : new Error(String(error));
+      firstFrameReject?.(resolved);
+      firstFrameResolve = null;
+      firstFrameReject = null;
+      if (previewRunning && previewMode === "h264" && h264Transport === "mcp") {
+        void fallBackToJpeg(resolved.message);
       }
     });
   });
@@ -699,8 +812,7 @@ async function requestFrame(): Promise<void> {
 async function fallBackToJpeg(reason: string): Promise<void> {
   if (!previewRunning || previewMode === "jpeg") return;
   previewMode = "jpeg";
-  closeWebSocket();
-  closeDecoder();
+  closeH264Transport();
   await callTool<StreamStatus>("scrcpymac_ui_stop_stream").catch(() => undefined);
   renderBackend("adb");
   setActivity(`${reason} Using JPEG fallback.`, "error");
@@ -710,7 +822,7 @@ async function fallBackToJpeg(reason: string): Promise<void> {
 function startStatusPolling(): void {
   if (statusTimer !== null) window.clearInterval(statusTimer);
   statusTimer = window.setInterval(() => {
-    if (!previewRunning || previewMode !== "h264") return;
+    if (!previewRunning || previewMode !== "h264" || h264Transport !== "websocket") return;
     void callTool<StreamStatus>("scrcpymac_ui_stream_status")
       .then(applyStreamStatus)
       .catch(() => undefined);
@@ -738,9 +850,19 @@ async function startPreview(): Promise<void> {
       resolution_percent: Number(resolutionSelect.value),
     });
     applyStreamStatus(status);
-    await connectH264Stream(status);
-    setActivity("Live H.264 stream · plugin runtime");
-    startStatusPolling();
+    try {
+      await connectWebSocketH264(status);
+      setActivity("Live H.264 stream · plugin runtime");
+      startStatusPolling();
+    } catch (webSocketError) {
+      closeWebSocket();
+      closeDecoder();
+      const reason =
+        webSocketError instanceof Error ? webSocketError.message : String(webSocketError);
+      setActivity(`${reason} Switching to the MCP H.264 bridge.`);
+      await connectMcpH264(status);
+      setActivity("Live H.264 stream · MCP bridge");
+    }
   } catch (error) {
     await fallBackToJpeg(error instanceof Error ? error.message : String(error));
   } finally {
@@ -756,8 +878,7 @@ async function stopPreview(callServer = true): Promise<void> {
   if (statusTimer !== null) window.clearInterval(statusTimer);
   refreshTimer = null;
   statusTimer = null;
-  closeWebSocket();
-  closeDecoder();
+  closeH264Transport();
   if (callServer) {
     await callTool<StreamStatus>("scrcpymac_ui_stop_stream").catch(() => undefined);
   }
@@ -896,7 +1017,7 @@ connectWifi.addEventListener("click", async () => {
 
 async function bootstrap(): Promise<void> {
   mcpApp = new App(
-    { name: "scrcpymac", version: "0.7.2" },
+    { name: "scrcpymac", version: APP_VERSION },
     { availableDisplayModes: ["inline", "fullscreen"] },
     { autoResize: true },
   );

@@ -49,24 +49,22 @@ Control a connected Android phone. The plugin owns its standalone scrcpy H.264 a
 
 ---
 
-## 1. Registration order
+## 1. Logical tool order
 
-`server.py:57` calls `register_scrcpymac_app(mcp, _get_actions, _runtime)` **before**
-any `@mcp.tool()` decorator runs. FastMCP's `ToolManager` is an insertion-ordered
-dict, so `tools/list` returns, in order:
+The Go SDK does not guarantee `tools/list` ordering. The logical order recorded
+in `contract.json.toolOrder` is:
 
 1. `open_scrcpymac`
 2. `scrcpymac_ui_state`, `scrcpymac_ui_select_device`, `scrcpymac_ui_start_stream`,
-   `scrcpymac_ui_stream_status`, `scrcpymac_ui_stop_stream`, `scrcpymac_ui_snapshot`,
+   `scrcpymac_ui_stream_status`, `scrcpymac_ui_stream_pull`,
+   `scrcpymac_ui_stop_stream`, `scrcpymac_ui_snapshot`,
    `scrcpymac_ui_tap`, `scrcpymac_ui_swipe`, `scrcpymac_ui_key`, `scrcpymac_ui_paste`,
-   `scrcpymac_ui_connect_wifi` (**11** tools — the task brief said 12; the source has 11
-   `scrcpymac_ui_*` plus `open_scrcpymac`, 12 tools total in `mcp_ui.py`)
-3. the 24 `phone_*` tools in `server.py` source order.
+   `scrcpymac_ui_connect_wifi` (**12** app-only tools)
+3. the 24 model-visible `phone_*` tools.
 
-**36 tools total.** `contract.json.toolOrder` is the authoritative list.
+**37 tools total.** `contract.json.toolOrder` is the authoritative list.
 
-That ordering is not cosmetic: it is what makes the widget resource's CSP
-`connectDomains` depend on a port allocated at import time (§4).
+Clients must depend on names and metadata, not the transport order.
 
 ---
 
@@ -219,7 +217,7 @@ title-cased `"title"` (`max_fps` → `"Max Fps"`), and `additionalProperties` is
 
 ---
 
-### 3.2 The eleven `scrcpymac_ui_*` tools — shared `_meta`
+### 3.2 The twelve `scrcpymac_ui_*` tools — shared `_meta`
 
 All eleven carry exactly (`APP_ONLY_META`, `mcp_ui.py:50`):
 
@@ -326,6 +324,24 @@ None of them declare an `outputSchema`.
 
 FPS is computed from a `deque(maxlen=180)` of `time.monotonic()` stamps as
 `(len-1) / (last - first)`, and only when at least 2 samples exist.
+
+---
+
+### 3.6a `scrcpymac_ui_stream_pull`
+
+* **title**: `Pull standalone ScrcpyMac H.264 packets`
+* **description**: `Long-poll a bounded H.264 packet batch through the MCP Apps bridge.`
+* **params**: `max_bytes` integer default `524288`; `timeout_ms` integer default `250`
+* **annotations**: `readOnly=true, destructive=false, idempotent=false, openWorld=false`
+* text block: `Pulled a standalone ScrcpyMac H.264 packet batch.`
+* structured keys: `ok, state, backend, encoding, error, fps, frames, frameWidth,
+  frameHeight, codec, transport, packetCount, sizeBytes, droppedGops, droppedPackets`
+* H.264 bytes live only in result `_meta["scrcpymac/h264"].dataBase64`
+* `_meta.ui.visibility=["app"]` keeps the tool component-only
+
+The payload concatenates complete ScrcpyMac application packets. Each packet
+starts with the frozen 14-byte version/flags/PTS/length header, so the widget
+can split the batch without another envelope.
 
 ---
 
@@ -493,7 +509,7 @@ them declare any of the three. Only the mcp_ui tools do.
 
 ### 3.15 `phone_doctor`
 
-* **description**: `Run environment diagnostics (adb, device, ScrcpyMac Agent, Python dependencies).`
+* **description**: `Run environment diagnostics for adb, the connected device, and bundled runtime assets.`
 * params: none · shape A
 * **Not wrapped by `_ok`/`_err`** — it is `json_result(run_doctor())` with **no try/except**,
   so `"ok"` is *first* and an unexpected exception really does produce `isError: true`.
@@ -1007,7 +1023,7 @@ appended unconditionally — this tool has no `port` parameter.
 
 `resources/read` returns a single `TextResourceContents` with that `uri`, that `mimeType`,
 the **same `_meta`** as the `resources/list` entry, and the full text of
-`server/phone_agent/static/scrcpymac-app.html` (currently ~365 KB, self-contained: no
+`go/internal/widget/assets/scrcpymac-app.html` (self-contained: no
 `<script src=>`, no `<link href=>`). A missing file raises
 `FileNotFoundError("ScrcpyMac widget build is missing. Run scripts/build-ui.sh.")`.
 

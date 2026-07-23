@@ -1,6 +1,7 @@
 package scrcpy
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -34,6 +35,7 @@ const (
 // exempt from both the drop policy and the key-frame gate.
 type queued struct {
 	frame  []byte
+	body   []byte
 	video  bool
 	key    bool
 	config bool
@@ -275,6 +277,71 @@ func (c *Client) pop() (queued, bool) {
 	return q, true
 }
 
+// waitBatch drains up to maxItems application packets without splitting an
+// access unit. It is the MCP App equivalent of the WebSocket writer: callers
+// block until data, shutdown, cancellation or timeout, while the packet pump
+// continues enqueueing without I/O.
+func (c *Client) waitBatch(ctx context.Context, maxBytes, maxItems int, timeout time.Duration) ([]queued, bool) {
+	if maxBytes < 1 {
+		maxBytes = 1
+	}
+	if maxItems < 1 {
+		maxItems = 1
+	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	for {
+		batch, open := c.popBatch(maxBytes, maxItems)
+		if len(batch) > 0 || !open {
+			return batch, open
+		}
+		select {
+		case <-ctx.Done():
+			return nil, true
+		case <-c.done:
+			return nil, false
+		case <-timer.C:
+			return nil, true
+		case <-c.wake:
+		}
+	}
+}
+
+// popBatch removes a bounded packet batch under one lock hold.
+func (c *Client) popBatch(maxBytes, maxItems int) ([]queued, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return nil, false
+	}
+
+	var batch []queued
+	bytes := 0
+	for c.head < len(c.queue) && len(batch) < maxItems {
+		q := c.queue[c.head]
+		size := len(q.body)
+		if size == 0 {
+			size = len(q.frame)
+		}
+		if len(batch) > 0 && bytes+size > maxBytes {
+			break
+		}
+		c.queue[c.head] = queued{}
+		c.head++
+		c.bytes -= len(q.frame)
+		c.stats.Sent++
+		c.stats.SentBytes += uint64(len(q.frame))
+		batch = append(batch, q)
+		bytes += size
+	}
+	if c.head == len(c.queue) {
+		c.queue = c.queue[:0]
+		c.head = 0
+	}
+	return batch, true
+}
+
 // takeWarning returns and clears the deferred drop warning.
 func (c *Client) takeWarning() (dropped int, waiting bool, queuedBytes int) {
 	c.mu.Lock()
@@ -345,7 +412,9 @@ func (c *Client) markClosed() {
 // finish. It is idempotent and safe from any goroutine.
 func (c *Client) shutdown() {
 	c.closeOnce.Do(func() { close(c.done) })
-	_ = c.conn.close()
+	if c.conn != nil {
+		_ = c.conn.close()
+	}
 	c.wg.Wait()
 	c.markClosed()
 }
@@ -418,7 +487,7 @@ func (h *Hub) Remove(c *Client) {
 // Broadcast records a packet for replay and queues it on every client. It never
 // blocks: every client enqueue is a slice append under that client's own mutex.
 func (h *Hub) Broadcast(p *Packet) {
-	q := queued{frame: p.Frame, video: true, key: p.Key, config: p.Config}
+	q := queued{frame: p.Frame, body: p.Body, video: true, key: p.Key, config: p.Config}
 	h.mu.Lock()
 	h.record(q)
 	for c := range h.clients {

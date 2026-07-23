@@ -4,7 +4,9 @@
 
 - Keep the plugin loopback video server alive for the lifetime of the MCP process
 - Publish the exact loopback HTTP and WebSocket origins in the MCP App CSP before the Widget loads
-- Prevent Codex from rejecting the H.264 transport and silently dropping to the sub-1 FPS JPEG compatibility path
+- Carry H.264 packets through an app-only MCP bridge when the native Codex widget cannot connect to loopback WebSocket
+- Show the plugin version beside the ScrcpyMac title in the native widget
+- Remove the Python server, virtual environment bootstrap, and runtime fallback; the plugin now ships only its Go backend
 
 ## 0.7.1 — 2026-07-22
 

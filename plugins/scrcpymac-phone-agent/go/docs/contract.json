@@ -105,7 +105,7 @@
         ]
       }
     },
-    "contentSource": "server/phone_agent/static/scrcpymac-app.html (single self-contained file)",
+    "contentSource": "go/internal/widget/assets/scrcpymac-app.html (single self-contained file embedded in the Go binary)",
     "missingFileError": "ScrcpyMac widget build is missing. Run scripts/build-ui.sh.",
     "connectDomainsOrdering": "connectDomains/connect_domains are computed ONCE at registration time by ScrcpyRuntime.stream_connect_domains(), which calls _ensure_loopback() and binds 127.0.0.1:0. register_scrcpymac_app runs at import of phone_agent.server (line 57), BEFORE any @mcp.tool decorator and long before any stream starts. The literal port baked into the CSP is therefore the loopback port allocated at process start. ScrcpyRuntime.close() nils _loopback, so a subsequent _ensure_loopback() would bind a DIFFERENT port while the resource _meta still advertises the old one. The wildcard entries (http://127.0.0.1:*, ws://127.0.0.1:* and the localhost variants) are what actually keep the widget working today -- a live suspect in the 1 FPS investigation."
   },
@@ -115,6 +115,7 @@
     "scrcpymac_ui_select_device",
     "scrcpymac_ui_start_stream",
     "scrcpymac_ui_stream_status",
+    "scrcpymac_ui_stream_pull",
     "scrcpymac_ui_stop_stream",
     "scrcpymac_ui_snapshot",
     "scrcpymac_ui_tap",
@@ -148,10 +149,10 @@
     "phone_disconnect_wifi"
   ],
   "toolCounts": {
-    "total": 36,
+    "total": 37,
     "phone": 24,
     "openScrcpymac": 1,
-    "scrcpymacUi": 11
+    "scrcpymacUi": 12
   },
   "tools": [
     {
@@ -482,6 +483,93 @@
       "notes": [
         "No try/except: this tool cannot return isError.",
         "The 7 base keys are always present. serial/deviceName/deviceWidth/deviceHeight/frameWidth/frameHeight/maxFps/resolutionPercent/codec are added only while _meta is set. streamUrl is added only when state==\"streaming\" AND a loopback port AND a token exist."
+      ]
+    },
+    {
+      "name": "scrcpymac_ui_stream_pull",
+      "title": "Pull standalone ScrcpyMac H.264 packets",
+      "description": "Long-poll a bounded H.264 packet batch through the MCP Apps bridge.",
+      "params": [
+        {
+          "name": "max_bytes",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 524288,
+          "schemaTitle": "Max Bytes"
+        },
+        {
+          "name": "timeout_ms",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 250,
+          "schemaTitle": "Timeout Ms"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "max_bytes": {
+            "default": 524288,
+            "title": "Max Bytes",
+            "type": "integer"
+          },
+          "timeout_ms": {
+            "default": 250,
+            "title": "Timeout Ms",
+            "type": "integer"
+          }
+        },
+        "title": "scrcpymac_ui_stream_pullArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "annotations": {
+        "title": null,
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "meta": {
+        "ui": {
+          "visibility": [
+            "app"
+          ]
+        }
+      },
+      "resultShape": "structured",
+      "textBlock": "Pulled a standalone ScrcpyMac H.264 packet batch.",
+      "resultKeys": [
+        "ok",
+        "state",
+        "backend",
+        "encoding",
+        "error",
+        "fps",
+        "frames",
+        "frameWidth",
+        "frameHeight",
+        "codec",
+        "transport",
+        "packetCount",
+        "sizeBytes",
+        "droppedGops",
+        "droppedPackets"
+      ],
+      "resultMeta": {
+        "scrcpymac/h264": {
+          "dataBase64": "base64-encoded concatenated 14-byte-header H.264 application packets"
+        }
+      },
+      "errorResultKeys": [],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "app"
+      ],
+      "notes": [
+        "The H.264 bytes are returned only in CallToolResult._meta so the component receives them without adding video data to model-visible content.",
+        "This is the native Codex transport when the sandbox cannot connect directly to the plugin loopback WebSocket."
       ]
     },
     {
@@ -1086,7 +1174,7 @@
     {
       "name": "phone_doctor",
       "title": null,
-      "description": "Run environment diagnostics (adb, device, ScrcpyMac Agent, Python dependencies).",
+      "description": "Run environment diagnostics for adb, the connected device, and bundled runtime assets.",
       "params": [],
       "inputSchema": {
         "properties": {},

@@ -2,6 +2,7 @@ package scrcpy
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -146,6 +147,59 @@ func TestLiveStream(t *testing.T) {
 	}
 
 	_ = conn.Close()
+
+	// Codex production sandboxes reject loopback ws:// origins. Exercise the
+	// standards-compliant MCP Apps tools/call transport against the same live
+	// stream and require it to stay far above the JPEG fallback rate.
+	const pullWindow = 5 * time.Second
+	pullStarted := time.Now()
+	pullDeadline := pullStarted.Add(pullWindow)
+	pullFirstFrame := time.Time{}
+	pullPackets := 0
+	pullConfigs := 0
+	for time.Now().Before(pullDeadline) {
+		batch := r.PullPackets(context.Background(), 512<<10, 250)
+		offset := 0
+		for offset < len(batch.Data) {
+			if len(batch.Data)-offset < WSHeaderLength {
+				t.Fatalf("MCP batch ended with a truncated H.264 header")
+			}
+			length := int(binary.BigEndian.Uint32(batch.Data[offset+10 : offset+WSHeaderLength]))
+			end := offset + WSHeaderLength + length
+			if end > len(batch.Data) {
+				t.Fatalf("MCP batch packet length exceeds the batch")
+			}
+			isConfig, _, _, _, err := DecodeStreamPacket(batch.Data[offset:end])
+			if err != nil {
+				t.Fatalf("MCP bridge delivered an invalid packet: %v", err)
+			}
+			if isConfig {
+				pullConfigs++
+			} else {
+				if pullFirstFrame.IsZero() {
+					pullFirstFrame = time.Now()
+				}
+				pullPackets++
+			}
+			offset = end
+		}
+	}
+	pullRate := float64(pullPackets) / pullWindow.Seconds()
+	pullStats := r.Stats()
+	pullDiag := r.Diagnostics()
+	t.Logf("MCP client received %d frames (%d config) in %.1fs = %.1f packets/s; first frame after %v",
+		pullPackets, pullConfigs, pullWindow.Seconds(), pullRate,
+		pullFirstFrame.Sub(pullStarted).Round(time.Millisecond))
+	t.Logf("MCP pump rate %.1f packets/s / %.1f frames/s; relay dropped %d GOPs / %d packets, max queue %d B",
+		pullDiag.PacketsPerSecond, pullDiag.FramesPerSecond,
+		pullStats.DroppedGOPs, pullStats.DroppedPackets, pullStats.MaxQueuedBytes)
+	if pullPackets == 0 || pullRate < 10 {
+		t.Fatalf("MCP H.264 bridge delivered only %.1f packets/s", pullRate)
+	}
+	if pullStats.DroppedGOPs != 0 {
+		t.Errorf("MCP H.264 bridge dropped %d GOPs", pullStats.DroppedGOPs)
+	}
+
 	r.Stop()
 
 	// Nothing may survive the stop: not the forward, not the device process.

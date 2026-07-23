@@ -3,6 +3,7 @@ package scrcpy
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -147,6 +148,45 @@ func TestStreamingStatusPayload(t *testing.T) {
 	}
 	if !strings.Contains(jsonresult.Text(status), `"fps": 0.0`) {
 		t.Error(`fps must serialise as a Python float ("0.0", never "0")`)
+	}
+}
+
+func TestPullPacketsReturnsConcatenatedApplicationPackets(t *testing.T) {
+	r := newTestRuntime(t)
+	fakeStreaming(t, r, &VideoMeta{
+		Serial: "S", Width: 540, Height: 1140, NativeWidth: 1080, NativeHeight: 2280,
+	}, "tok")
+	r.hub.Broadcast(makePacket(0, kindConfig, 32))
+	r.hub.Broadcast(makePacket(1, kindKey, 64))
+	r.hub.Broadcast(makePacket(2, kindDelta, 64))
+
+	batch := r.PullPackets(context.Background(), 1<<20, 100)
+	if batch.PacketCount != 3 {
+		t.Fatalf("PacketCount = %d, want 3", batch.PacketCount)
+	}
+	if batch.DroppedGOPs != 0 || batch.DroppedPackets != 0 {
+		t.Fatalf("unexpected drops: %d GOPs / %d packets", batch.DroppedGOPs, batch.DroppedPackets)
+	}
+
+	offset := 0
+	decoded := 0
+	for offset < len(batch.Data) {
+		if len(batch.Data)-offset < WSHeaderLength {
+			t.Fatalf("truncated packet at offset %d", offset)
+		}
+		length := int(binary.BigEndian.Uint32(batch.Data[offset+10 : offset+WSHeaderLength]))
+		end := offset + WSHeaderLength + length
+		if end > len(batch.Data) {
+			t.Fatalf("packet at offset %d ends past batch", offset)
+		}
+		if _, _, _, _, err := DecodeStreamPacket(batch.Data[offset:end]); err != nil {
+			t.Fatalf("packet %d: %v", decoded, err)
+		}
+		decoded++
+		offset = end
+	}
+	if decoded != batch.PacketCount {
+		t.Fatalf("decoded %d packets, summary reports %d", decoded, batch.PacketCount)
 	}
 }
 

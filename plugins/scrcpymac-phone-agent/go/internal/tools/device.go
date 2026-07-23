@@ -160,7 +160,7 @@ func registerPhoneDevice(s *mcp.Server, env *mcpserver.Env) error {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:         "phone_doctor",
-		Description:  "Run environment diagnostics (adb, device, ScrcpyMac Agent, Python dependencies).",
+		Description:  "Run environment diagnostics for adb, the connected device, and bundled runtime assets.",
 		InputSchema:  ObjectSchema("phone_doctorArguments"),
 		OutputSchema: StringOutputSchema("phone_doctor"),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ deviceNoArgs) (*mcp.CallToolResult, StringOut, error) {

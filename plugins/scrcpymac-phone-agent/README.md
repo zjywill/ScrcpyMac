@@ -9,7 +9,7 @@ available to Cursor, Claude, and other MCP hosts.
 |-----------|-------------|
 | **Codex widget** | Fullscreen H.264 phone stream, touch controls, navigation, paste, and Wi-Fi |
 | **Standalone runtime** | Plugin-owned scrcpy 3.3.4 video/control session; no ScrcpyMac.app process |
-| **MCP server** | 24 tools: screenshot, calibrated taps, paste, UI tree, Wi-Fi adb, WeChat recipe, … |
+| **MCP server** | Bundled Go binary with 24 model tools and 13 native-widget tools |
 | **Skills** | `phone-setup`, `wechat`, `android-nav`, `scrcpymac-link` |
 | **Launcher** | `bin/phone-agent` + `mcp-server.sh` |
 | **Scripts** | `install.sh`, `configure.sh`, `download-adb.sh`, `doctor.sh` |
@@ -17,16 +17,16 @@ available to Cursor, Claude, and other MCP hosts.
 ## Requirements
 
 - macOS 13+ (primary target)
-- Python 3.10+
 - Android 10+ with USB debugging
 - `adb` auto-downloaded on install (or use system adb)
 - No ScrcpyMac.app or Homebrew scrcpy installation required
+- No Python, virtual environment, or first-run package installation
 
 ## Quick install
 
 ```bash
 cd plugins/scrcpymac-phone-agent
-./scripts/install.sh    # installs deps, downloads adb, links Cursor local plugin
+./scripts/install.sh    # verifies Go runtime, downloads adb, links Cursor local plugin
 ```
 
 ### Cursor (local test)
@@ -51,10 +51,8 @@ codex plugin add scrcpymac-phone-agent@scrcpymac
 
 Alternatively, open Codex → Plugins and install **ScrcpyMac Phone Agent**.
 
-On the first MCP or `doctor` launch, the plugin creates its own `.venv` and
-installs the Python dependencies there. It does not modify Homebrew, system, or
-Conda Python environments. If adb is not already available, the first MCP
-launch downloads the bundled platform-tools binary.
+The plugin runs only its bundled native Go binary. If adb is not already
+available, the first MCP launch downloads the bundled platform-tools binary.
 
 ### Manual MCP config
 
@@ -85,9 +83,11 @@ Open Android Settings and take a screenshot
 
 `open_scrcpymac` opens the native Codex widget. The plugin starts its own
 scrcpy-server session, relays continuous H.264 packets over a token-protected
-loopback WebSocket, and decodes them with WebCodecs. The default is 60 FPS at
-50% resolution; 30 FPS and 75%/100% resolution are selectable. JPEG screenshot
-polling remains an explicit compatibility fallback.
+loopback WebSocket when permitted, and otherwise carries the same H.264 packets
+through an app-only MCP tool result. The widget decodes both transports with
+WebCodecs. The default is 60 FPS at 50% resolution; 30 FPS and 75%/100%
+resolution are selectable. JPEG screenshot polling remains the final
+compatibility fallback.
 
 The widget and model tools use the same plugin process and selected device.
 Normal agent calls continue to expose `phone_doctor`, `phone_screenshot`,
@@ -151,8 +151,7 @@ Placed at `bin/darwin/adb` as a universal arm64/x86_64 binary. See
 | `ADB_PATH` | Override adb binary |
 | `PHONE_AGENT_SERIAL` | Target device serial |
 | `PHONE_AGENT_ROOT` | Set automatically by launcher |
-| `PHONE_AGENT_PYTHON` | Use an explicitly managed Python instead of the plugin `.venv` |
-| `PHONE_AGENT_BOOTSTRAP_PYTHON` | Base Python used to create the plugin `.venv` |
+| `PHONE_AGENT_BINARY` | Override the bundled Go binary, primarily for development smoke tests |
 | `PHONE_AGENT_AUTO_DOWNLOAD_ADB` | Set to `0` to disable first-launch adb download |
 | `SCRCPY_SERVER_PATH` | Override the plugin-bundled scrcpy-server 3.3.4 binary |
 
@@ -165,9 +164,9 @@ See [MARKETPLACE.md](./MARKETPLACE.md) for Cursor/Codex submission checklist.
 The Codex plugin is fully independent from the native macOS app:
 
 1. The plugin bundles `scrcpy-server` 3.3.4.
-2. Its Python MCP process owns adb push/forward, video socket, control socket,
-   loopback WebSocket, and teardown.
-3. The Widget receives original H.264 packets instead of base64 screenshots.
+2. Its Go MCP process owns adb push/forward, video socket, control socket,
+   loopback WebSocket, MCP H.264 bridge, and teardown.
+3. The Widget receives original H.264 packets instead of polling screenshots.
 4. Tap, swipe, navigation, and paste use the same scrcpy control session.
 5. `phone_doctor` reports `plugin-h264-ready` when the standalone runtime assets
    are available.

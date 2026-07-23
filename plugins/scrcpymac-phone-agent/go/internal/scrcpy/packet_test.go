@@ -1,6 +1,7 @@
 package scrcpy
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"testing"
@@ -123,6 +124,9 @@ func TestStreamPacketRoundTrip(t *testing.T) {
 				t.Fatalf("Size = %d, want %d", packet.Size, len(tt.payload))
 			}
 			_, body := wsBody(t, packet.Frame)
+			if !bytes.Equal(packet.Body, body) {
+				t.Fatal("Packet.Body must be the application packet without WebSocket framing")
+			}
 
 			isConfig, isKey, pts, decoded, err := DecodeStreamPacket(body)
 			if err != nil {

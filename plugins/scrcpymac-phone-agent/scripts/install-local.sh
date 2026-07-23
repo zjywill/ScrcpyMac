@@ -84,18 +84,14 @@ if [[ ! -d "$TARGET" ]]; then
   exit 1
 fi
 
-backend_note="python (no Go binary built)"
-if [[ -x "$PLUGIN_ROOT/bin/darwin/arm64/phone-agent" || -x "$PLUGIN_ROOT/bin/darwin/x86_64/phone-agent" ]]; then
-  backend_note="go (bin/darwin/*/phone-agent present — launcher prefers it)"
-fi
-echo "==> backend        : $backend_note"
+echo "==> backend        : go (bundled native binary)"
 echo ""
 
 # ---------------------------------------------------------------- sync
-# .venv is excluded AND protected from --delete so the installed Python runtime
-# survives; node_modules and the Go source tree never belong in a plugin install.
+# Generated dependencies and the Go source tree never belong in a plugin install.
+# --delete-excluded also removes stale Python runtimes from older installations.
 RSYNC_ARGS=(
-  -a --delete
+  -a --delete --delete-excluded
   --exclude '.venv/'
   --exclude '__pycache__/'
   --exclude '*.pyc'
@@ -121,7 +117,7 @@ chmod +x "$TARGET"/bin/darwin/*/phone-agent 2>/dev/null || true
 
 echo ""
 echo "==> synced. Verifying the installed copy:"
-if PHONE_AGENT_BACKEND="${PHONE_AGENT_BACKEND:-auto}" "$TARGET/bin/phone-agent" doctor >/tmp/phone-agent-doctor.json 2>/tmp/phone-agent-doctor.err; then
+if "$TARGET/bin/phone-agent" doctor >/tmp/phone-agent-doctor.json 2>/tmp/phone-agent-doctor.err; then
   head -30 /tmp/phone-agent-doctor.json
 else
   echo "    doctor exited non-zero:"
@@ -129,14 +125,10 @@ else
 fi
 
 running="$(
-  (pgrep -f 'phone_agent.server|bin/darwin/.*/phone-agent' 2>/dev/null || true) |
+  (pgrep -f 'bin/darwin/.*/phone-agent' 2>/dev/null || true) |
     wc -l |
     tr -d '[:space:]'
 )"
 echo ""
 echo "==> ${running} MCP server process(es) still running the OLD code."
 echo "    Restart Codex (or toggle the plugin off/on) to pick this up."
-echo ""
-echo "A/B the backends:"
-echo "    PHONE_AGENT_BACKEND=go     $TARGET/bin/phone-agent doctor"
-echo "    PHONE_AGENT_BACKEND=python $TARGET/bin/phone-agent doctor"

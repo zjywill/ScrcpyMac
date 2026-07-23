@@ -1,113 +1,92 @@
-# 在 Codex 里安装试验这个插件
+# 在 Codex 里安装和验证 Go-only 插件
 
-## 先理解拓扑（否则会改了没反应）
+## 安装拓扑
 
-```
-~/.codex/config.toml
-  [marketplaces.scrcpymac]
-  source_type = "local"
-  source      = "/Users/junyizhang/Git/scrcpyMac"      <- marketplace 就是本地 repo
-        |
-        | 安装时「拷贝」，不是软链、不是 git checkout
-        v
+本地 marketplace 指向仓库，但 Codex 安装时会把插件复制到版本缓存：
+
+```text
+/Users/junyizhang/Git/scrcpyMac/plugins/scrcpymac-phone-agent
+  |
+  | install/copy
+  v
 ~/.codex/plugins/cache/scrcpymac/scrcpymac-phone-agent/<version>/
-        |
-        +-- .venv/                 <- Codex 首次安装时 pip install 出来的
-        +-- mcp-server.sh -> bin/phone-agent mcp
 ```
 
-三个后果：
+因此：
 
-1. **改 repo 不会影响正在运行的插件**，必须同步到 cache 目录。
-2. 安装目录**按版本号分开**。版本号不变，Codex 认为无需重装。
-3. 版本号写在三处，必须一起改：
-   `.agents/plugins/marketplace.json`（metadata + plugins[0] 两处）、
-   `plugins/scrcpymac-phone-agent/.codex-plugin/plugin.json`、
-   `.cursor-plugin/plugin.json`。
+1. 修改仓库不会自动影响正在运行的插件。
+2. MCP 进程必须重启，才能加载新的 Go binary 和内嵌 widget。
+3. 插件只运行 `bin/darwin/<arch>/phone-agent`，没有 Python fallback。
 
-因为 marketplace 源就是本地 repo，**不需要 push 到 GitHub** 就能装。
-
----
-
-## 路径 A：热同步（日常迭代用，最快）
-
-把当前工作树直接盖进已安装的版本目录：
-
-```bash
-plugins/scrcpymac-phone-agent/scripts/install-local.sh
-```
-
-先看会改什么：
-
-```bash
-plugins/scrcpymac-phone-agent/scripts/install-local.sh --dry-run
-```
-
-同步会保留安装目录里的 `.venv`（不会重建 Python 环境），并跳过 `go/`、
-`node_modules`、`__pycache__`。同步完脚本会跑一次 `doctor` 自检，并提示还有几个
-**旧 MCP 进程在跑老代码**——必须重启 Codex 或把插件关掉再打开才会加载新代码。
-
-## 路径 B：版本号发布（走真实用户路径，验收用）
-
-```bash
-plugins/scrcpymac-phone-agent/scripts/install-local.sh --bump 0.8.0
-```
-
-改完三处版本号后，去 Codex 插件界面从 `scrcpymac` marketplace 重新安装／升级，
-它会读本地 repo 建出 `.../scrcpymac-phone-agent/0.8.0/`。这条路径会走真实的首装流程
-（含 `.venv` 创建），所以是验证「装上即用」的唯一可信方式。
-
----
-
-## 切换 Python / Go 后端
-
-`bin/phone-agent` 现在是一个分发器，Go 二进制存在就优先用它，否则回落到 Python：
-
-```bash
-PHONE_AGENT_BACKEND=go      bin/phone-agent doctor   # 强制 Go，缺二进制则报错退出
-PHONE_AGENT_BACKEND=python  bin/phone-agent doctor   # 强制旧的 Python 实现
-PHONE_AGENT_BACKEND=auto    bin/phone-agent doctor   # 默认：有 Go 用 Go
-PHONE_AGENT_BINARY=/path/to/phone-agent bin/phone-agent mcp   # 指定任意二进制
-```
-
-要让 Codex 用某个后端，在插件的 MCP 配置里加环境变量，或直接删掉／放回
-`bin/darwin/*/phone-agent`。
-
-**回滚**：删除 `bin/darwin/*/phone-agent` 即可回到 Python，无需改任何配置。
-
----
-
-## 构建 Go 二进制
-
-```bash
-plugins/scrcpymac-phone-agent/scripts/build-go.sh          # arm64 + x86_64
-plugins/scrcpymac-phone-agent/scripts/build-go.sh arm64    # 只构建本机架构
-```
-
-产物落在 `bin/darwin/arm64/phone-agent` 和 `bin/darwin/x86_64/phone-agent`。
-
-工具链固定为 **go1.26.5**（当前上游稳定版）。本机装的是 go1.25.7，但 `GOTOOLCHAIN=auto`
-是默认值，会按 `go.mod` 的 `toolchain` 指令自动下载 1.26.5——不用手动升级 brew，CI 也因此可复现。
-
-> `build-go.sh` 会在构建前把 `server/phone_agent/static/scrcpymac-app.html` 拷进
-> `go/internal/widget/assets/`（`//go:embed` 取不到模块目录之外的文件）。所以顺序是：
-> `scripts/build-ui.sh` → `scripts/build-go.sh` → `scripts/install-local.sh`。
-
----
-
-## 完整迭代循环
+## 完整构建
 
 ```bash
 cd /Users/junyizhang/Git/scrcpyMac/plugins/scrcpymac-phone-agent
-./scripts/build-ui.sh          # 只在改了 ui/src 时需要
+
 ./scripts/build-go.sh
-./scripts/install-local.sh
-# 重启 Codex，或把插件 off/on
 ```
 
-## 验收（对应 1 FPS 那个老问题）
+该命令会依次：
 
-不要看静止的 Launcher 判断帧率——scrcpy 只在画面变化时才编码，静止画面本来就接近 0 FPS。
-必须**持续滚动 12 秒以上**再看，并分层核对：设备编码器 → scrcpy socket → relay →
-WebSocket → VideoDecoder → canvas。Go 版本会新增一个模型可见的只读 stream 诊断工具，
-让这些数字不用再靠猜。
+1. `npm ci`
+2. UI `tsc --noEmit`
+3. Vite 单文件构建
+4. 更新 `go/internal/widget/assets/scrcpymac-app.html`
+5. 使用 Go 1.26.5 构建 arm64 和 x86_64 release binary
+
+## 热同步到已安装版本
+
+```bash
+./scripts/install-local.sh --dry-run
+./scripts/install-local.sh
+```
+
+同步会跳过源码和构建依赖，并删除旧安装遗留的 `server/`、`.venv`、
+`__pycache__` 等 Python runtime。同步后必须重启 Codex 或关闭再开启插件。
+
+## 版本发布
+
+版本号需要保持一致：
+
+- `.agents/plugins/marketplace.json`
+- `.codex-plugin/plugin.json`
+- `.cursor-plugin/plugin.json`
+- `ui/package.json`
+- `go/internal/version/version.go`
+
+Go packaging 测试会检查这些值。发布新版本后：
+
+```bash
+./scripts/install-local.sh --bump <version>
+./scripts/build-go.sh
+```
+
+然后从 Codex 插件界面重新安装或升级。
+
+## 本地验证
+
+```bash
+./bin/phone-agent version
+./bin/phone-agent doctor
+./bin/phone-agent devices
+
+cd go
+go test ./...
+go vet ./...
+scripts/smoke-stdio.sh ../bin/darwin/arm64/phone-agent
+```
+
+`phone_doctor` 必须显示 `binary`、`plugin_root`、bundled `adb` 和 bundled
+`scrcpy_server`，不得出现 `python` 或 `mcp_package`。
+
+## Native Widget 验收
+
+1. 调用 `open_scrcpymac` 打开 native widget。
+2. 确认标题旁显示插件版本。
+3. 选择设备并点击 `Start preview`。
+4. WebSocket 不可用时应切换到 `Live H.264 stream · MCP bridge`，不能直接进入 JPEG。
+5. 记录 UI FPS、`src pkt/s` 和 GOP drop。
+6. 在 Settings 前台执行一次无害 Back 或 swipe，确认控制和画面变化。
+7. Stop 后确认本次 adb forward 和设备端 `scrcpymac-plugin-server` 进程已回收。
+
+不要把终端 `TestLiveStream` 或 ADB 截图冒充 native widget 验收。

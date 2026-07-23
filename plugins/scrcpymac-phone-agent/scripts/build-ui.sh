@@ -3,7 +3,7 @@ set -euo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UI_ROOT="$PLUGIN_ROOT/ui"
-STATIC_ROOT="$PLUGIN_ROOT/server/phone_agent/static"
+EMBED_ROOT="$PLUGIN_ROOT/go/internal/widget/assets"
 
 cleanup() {
   if [[ -d "$UI_ROOT/node_modules" ]]; then
@@ -20,7 +20,7 @@ npm ci
 npm run check
 npm run build
 
-mkdir -p "$STATIC_ROOT"
-cp "$UI_ROOT/dist/index.html" "$STATIC_ROOT/scrcpymac-app.html"
+mkdir -p "$EMBED_ROOT"
+cp "$UI_ROOT/dist/index.html" "$EMBED_ROOT/scrcpymac-app.html"
 
-echo "ScrcpyMac widget built: $STATIC_ROOT/scrcpymac-app.html"
+echo "ScrcpyMac widget built: $EMBED_ROOT/scrcpymac-app.html"

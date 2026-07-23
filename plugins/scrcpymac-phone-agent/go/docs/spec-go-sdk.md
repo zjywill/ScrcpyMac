@@ -58,7 +58,7 @@ something unknown, where Python's older SDK might not.
 
 ## 2. The contract to reproduce (captured from the live Python server)
 
-36 tools: 24 `phone_*` + `open_scrcpymac` + 11 `scrcpymac_ui_*`. Three distinct shapes:
+37 tools: 24 `phone_*` + `open_scrcpymac` + 12 `scrcpymac_ui_*`. Three distinct shapes:
 
 ### Shape A — `phone_*` tools (24 of them)
 
@@ -119,7 +119,7 @@ blocks in this order:
 }
 ```
 
-### Shape C — `open_scrcpymac` + 11 `scrcpymac_ui_*`
+### Shape C — `open_scrcpymac` + 12 `scrcpymac_ui_*`
 
 `title`, full `annotations`, arbitrary `_meta`, hand-built `structuredContent`,
 **no outputSchema**:
@@ -816,7 +816,7 @@ one. The Go build removes it outright: `go.mod` + `go.sum` pin the SDK exactly.
 - [ ] Optional input struct fields carry `,omitempty`.
 - [ ] 24 `phone_*` tools use Pattern A (`stringResultOut` + explicit `Content` +
       `stringResultOutputSchema`), except `phone_screenshot`, which uses Pattern C.
-- [ ] `open_scrcpymac` + 11 `scrcpymac_ui_*` use Pattern C with `Meta` and `Annotations`.
+- [ ] `open_scrcpymac` + 12 `scrcpymac_ui_*` use Pattern C with `Meta` and `Annotations`.
 - [ ] `DestructiveHint` / `OpenWorldHint` always via `boolPtr(...)`.
 - [ ] All payload JSON rendered by the ordered, `SetEscapeHTML(false)`, two-space
       encoder — never bare `json.MarshalIndent(map[string]any{...})`.

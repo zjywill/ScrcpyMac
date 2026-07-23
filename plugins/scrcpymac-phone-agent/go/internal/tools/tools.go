@@ -46,7 +46,7 @@
 //     double-encoded. Use StringOutputSchema + JSON/JSONFail.
 //   - Shape B — phone_screenshot only: no outputSchema, no structuredContent,
 //     one or two content blocks. Use Structured/TextAndImage with Out = any.
-//   - Shape C — open_scrcpymac and the 11 scrcpymac_ui_* tools: no outputSchema,
+//   - Shape C — open_scrcpymac and the 12 scrcpymac_ui_* tools: no outputSchema,
 //     a hand-built structuredContent object and a human sentence as the text
 //     block. Use Structured/StructuredError with Out = any.
 //
@@ -90,9 +90,8 @@ var OpenToolMeta = mcp.Meta{
 	"openai/toolInvocation/invoked":  "ScrcpyMac ready",
 }
 
-// AppOnlyMeta hides a tool from the model: it is the ONLY thing keeping the 11
-// scrcpymac_ui_* tools out of Codex's tool list. If it ever fails to round-trip,
-// the model sees eleven extra tools.
+// AppOnlyMeta hides a tool from the model: it is the ONLY thing keeping the 12
+// scrcpymac_ui_* tools out of Codex's model-visible tool list.
 var AppOnlyMeta = mcp.Meta{
 	"ui": map[string]any{
 		"visibility": []string{"app"},

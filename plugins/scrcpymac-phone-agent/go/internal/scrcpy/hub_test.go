@@ -1,6 +1,7 @@
 package scrcpy
 
 import (
+	"context"
 	"encoding/binary"
 	"net"
 	"testing"
@@ -261,6 +262,38 @@ func TestHubGatesAClientThatConnectsBeforeAKeyFrame(t *testing.T) {
 	assertDecodable(t, got)
 	if len(got) != 3 {
 		t.Fatalf("got %d frames, want config + key + delta: %+v", len(got), got)
+	}
+}
+
+func TestPullClientReceivesReplayAsApplicationPackets(t *testing.T) {
+	hub := newHub()
+	hub.Broadcast(makePacket(0, kindConfig, 32))
+	hub.Broadcast(makePacket(1, kindKey, 64))
+	hub.Broadcast(makePacket(2, kindDelta, 64))
+
+	client := newClient("pull", nil, nil)
+	if !hub.Add(client, nil) {
+		t.Fatal("Add refused a pull client")
+	}
+	t.Cleanup(func() {
+		hub.Remove(client)
+		client.shutdown()
+	})
+
+	batch, open := client.waitBatch(context.Background(), 1<<20, 20, time.Second)
+	if !open {
+		t.Fatal("pull client closed before delivering replay")
+	}
+	if len(batch) != 3 {
+		t.Fatalf("got %d packets, want config + key + delta", len(batch))
+	}
+	for index, item := range batch {
+		if len(item.body) == 0 {
+			t.Fatalf("batch[%d] has no application packet body", index)
+		}
+		if _, _, _, _, err := DecodeStreamPacket(item.body); err != nil {
+			t.Fatalf("batch[%d] is not decodable: %v", index, err)
+		}
 	}
 }
 

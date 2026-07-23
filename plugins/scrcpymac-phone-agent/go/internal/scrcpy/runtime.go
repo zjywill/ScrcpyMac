@@ -23,6 +23,15 @@ import (
 // fpsWindowSize matches the Python's deque(maxlen=180): three seconds at 60 fps.
 const fpsWindowSize = 180
 
+const (
+	defaultPullBatchBytes = 512 << 10
+	minPullBatchBytes     = 32 << 10
+	maxPullBatchBytes     = 1 << 20
+	defaultPullTimeoutMS  = 250
+	maxPullTimeoutMS      = 1000
+	maxPullBatchPackets   = 240
+)
+
 // Options configures a Runtime.
 type Options struct {
 	// Log receives relay diagnostics. Never point it at stdout: stdout is the
@@ -71,9 +80,10 @@ type Runtime struct {
 	startedAt     time.Time
 	clientSeq     uint64
 
-	hub    *Hub
-	lb     *loopback
-	closed bool
+	hub        *Hub
+	lb         *loopback
+	pullClient *Client
+	closed     bool
 
 	// controlMu serialises control-socket writes, mirroring the Python's
 	// separate _control_send_lock: a swipe holds it for its whole duration and
@@ -332,6 +342,112 @@ func (r *Runtime) loopbackPortLocked() int {
 // Status: that payload's key set is frozen contract.
 func (r *Runtime) Stats() HubStats { return r.hub.Stats() }
 
+// PullBatch is one H.264 batch delivered through the MCP Apps tools/call
+// bridge. Data concatenates complete application packets; each packet carries
+// its own 14-byte header and payload length, so the widget can split it without
+// another envelope.
+type PullBatch struct {
+	Status         *jsonresult.Obj
+	Data           []byte
+	PacketCount    int
+	DroppedGOPs    uint64
+	DroppedPackets uint64
+}
+
+// PullPackets long-polls the process-local relay for a bounded H.264 batch.
+// This is the standards-compliant transport for hosts whose sandbox CSP does
+// not allow a widget to open a loopback WebSocket.
+func (r *Runtime) PullPackets(ctx context.Context, maxBytes, timeoutMS int) PullBatch {
+	if maxBytes <= 0 {
+		maxBytes = defaultPullBatchBytes
+	}
+	if maxBytes < minPullBatchBytes {
+		maxBytes = minPullBatchBytes
+	}
+	if maxBytes > maxPullBatchBytes {
+		maxBytes = maxPullBatchBytes
+	}
+	if timeoutMS <= 0 {
+		timeoutMS = defaultPullTimeoutMS
+	}
+	if timeoutMS > maxPullTimeoutMS {
+		timeoutMS = maxPullTimeoutMS
+	}
+
+	client, err := r.ensurePullClient()
+	if err != nil {
+		return PullBatch{Status: r.Status()}
+	}
+	queuedBatch, _ := client.waitBatch(
+		ctx,
+		maxBytes,
+		maxPullBatchPackets,
+		time.Duration(timeoutMS)*time.Millisecond,
+	)
+	data := make([]byte, 0, maxBytes)
+	packets := 0
+	for _, q := range queuedBatch {
+		if !q.video || len(q.body) == 0 {
+			continue
+		}
+		data = append(data, q.body...)
+		packets++
+	}
+	stats := client.Stats()
+	return PullBatch{
+		Status:         r.Status(),
+		Data:           data,
+		PacketCount:    packets,
+		DroppedGOPs:    stats.DroppedGOPs,
+		DroppedPackets: stats.DroppedPackets,
+	}
+}
+
+// ensurePullClient attaches one process-local consumer to the same replay and
+// GOP-aware queue used by WebSocket viewers.
+func (r *Runtime) ensurePullClient() (*Client, error) {
+	r.mu.Lock()
+	if r.state != StateStreaming {
+		r.mu.Unlock()
+		return nil, errorf("plugin scrcpy stream is not running")
+	}
+	if r.pullClient != nil {
+		client := r.pullClient
+		r.mu.Unlock()
+		return client, nil
+	}
+	streamID := r.streamID
+	r.mu.Unlock()
+
+	candidate := newClient(r.nextClientID(), nil, r.logger())
+	r.mu.Lock()
+	if r.state != StateStreaming || r.streamID != streamID {
+		r.mu.Unlock()
+		candidate.markClosed()
+		return nil, errorf("plugin scrcpy stream is not running")
+	}
+	if r.pullClient != nil {
+		client := r.pullClient
+		r.mu.Unlock()
+		candidate.markClosed()
+		return client, nil
+	}
+	r.pullClient = candidate
+	r.mu.Unlock()
+
+	if !r.hub.Add(candidate, nil) || !r.stillStreaming(streamID) {
+		r.hub.Remove(candidate)
+		candidate.shutdown()
+		r.mu.Lock()
+		if r.pullClient == candidate {
+			r.pullClient = nil
+		}
+		r.mu.Unlock()
+		return nil, errorf("plugin scrcpy stream is not running")
+	}
+	return candidate, nil
+}
+
 // Start brings up a scrcpy session for serial and begins relaying H.264.
 //
 // ctx bounds the setup adb calls only. The scrcpy-server process is bound to the
@@ -494,6 +610,7 @@ func (r *Runtime) stopResources(expectedStreamID int, errMsg string) {
 	r.streamID++
 	sess := r.sess
 	r.sess = nil
+	r.pullClient = nil
 	r.token = ""
 	r.frames.reset()
 	r.packets.reset()

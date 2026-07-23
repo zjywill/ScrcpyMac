@@ -277,7 +277,7 @@ func TestWidgetToolsAreRegistered(t *testing.T) {
 // TestStreamDiagnosticsIsOffByDefault is the guard on the migration's hard
 // constraint: phone_stream_status is model-visible, so registering it
 // unconditionally would give Codex a 25th phone_* tool the Python server never
-// had. docs/contract.json freezes the surface at 36 tools; this keeps it there
+// had. docs/contract.json freezes the surface at 37 tools; this keeps it there
 // unless a human opts in.
 func TestStreamDiagnosticsIsOffByDefault(t *testing.T) {
 	t.Setenv(StreamDiagnosticsEnv, "")

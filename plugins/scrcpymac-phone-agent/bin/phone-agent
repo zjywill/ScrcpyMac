@@ -4,8 +4,6 @@ set -euo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PHONE_AGENT_ROOT="$PLUGIN_ROOT"
-SERVER_DIR="$PLUGIN_ROOT/server"
-PYTHON_BIN="${PHONE_AGENT_PYTHON:-python3}"
 
 select_bundled_adb() {
   local platform=""
@@ -72,14 +70,7 @@ ensure_adb_for_mcp() {
   fi
 }
 
-ensure_plugin_runtime() {
-  if [[ -z "${PHONE_AGENT_PYTHON:-}" ]]; then
-    "$PLUGIN_ROOT/scripts/ensure-runtime.sh" >&2
-    PYTHON_BIN="$PLUGIN_ROOT/.venv/bin/python"
-  fi
-}
-
-# Locate the compiled Go server, if this install has one. Built by
+# Locate the compiled Go server. Built by
 # scripts/build-go.sh into bin/<platform>/<arch>/phone-agent.
 GO_BINARY=""
 select_go_binary() {
@@ -109,54 +100,22 @@ select_go_binary() {
 
 select_bundled_adb
 
-# Backend selection: auto (Go when built, else Python), or force one.
-# The Go server is a drop-in replacement for the Python one; keeping both
-# selectable makes A/B comparison and rollback a single env var.
-backend="${PHONE_AGENT_BACKEND:-auto}"
 cmd="${1:-}"
 
-case "$backend" in
-  go|auto)
-    if select_go_binary; then
-      [[ "$cmd" == "mcp" ]] && ensure_adb_for_mcp
-      exec "$GO_BINARY" "$@"
-    fi
-    if [[ "$backend" == "go" ]]; then
-      echo "ERROR: PHONE_AGENT_BACKEND=go but no Go binary found." >&2
-      echo "       Build one with: $PLUGIN_ROOT/scripts/build-go.sh" >&2
-      exit 1
-    fi
-    ;;
-  python) ;;
-  *)
-    echo "ERROR: PHONE_AGENT_BACKEND must be auto, go, or python (got '$backend')" >&2
-    exit 1
-    ;;
-esac
-
-export PYTHONPATH="$SERVER_DIR${PYTHONPATH:+:$PYTHONPATH}"
-
 case "$cmd" in
-  mcp)
-    ensure_plugin_runtime
-    ensure_adb_for_mcp
-    exec "$PYTHON_BIN" -m phone_agent.server
-    ;;
-  doctor)
-    ensure_plugin_runtime
-    exec "$PYTHON_BIN" -c "from phone_agent.doctor import run_doctor; import json; print(json.dumps(run_doctor(), indent=2, ensure_ascii=False))"
-    ;;
-  devices)
-    ensure_plugin_runtime
-    exec "$PYTHON_BIN" -c "from phone_agent.actions import PhoneActions; import json; print(json.dumps(PhoneActions().devices(), indent=2, ensure_ascii=False))"
-    ;;
-  version)
-    ensure_plugin_runtime
-    "$PYTHON_BIN" -c "from phone_agent import __version__; print(f'scrcpymac-phone-agent {__version__}')"
-    ;;
+  mcp|doctor|devices|version) ;;
   *)
     echo "ScrcpyMac Phone Agent" >&2
     echo "Usage: phone-agent {mcp|doctor|devices|version}" >&2
     exit 1
     ;;
 esac
+
+if ! select_go_binary; then
+  echo "ERROR: no compatible bundled phone-agent Go binary found." >&2
+  echo "       Build it with: $PLUGIN_ROOT/scripts/build-go.sh" >&2
+  exit 1
+fi
+
+[[ "$cmd" == "mcp" ]] && ensure_adb_for_mcp
+exec "$GO_BINARY" "$@"

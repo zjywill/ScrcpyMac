@@ -5,8 +5,7 @@
 #   bin/darwin/arm64/phone-agent
 #   bin/darwin/x86_64/phone-agent
 #
-# The bash launcher bin/phone-agent picks these up automatically; see
-# PHONE_AGENT_BACKEND in that script to force the Python or Go path.
+# The bash launcher bin/phone-agent executes the matching binary directly.
 set -euo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -20,8 +19,7 @@ GO_TOOLCHAIN="${PHONE_AGENT_GO_TOOLCHAIN:-go1.26.5}"
 ARCHS="${1:-all}"
 
 if [[ ! -f "$GO_DIR/go.mod" ]]; then
-  echo "ERROR: $GO_DIR/go.mod not found — the Go migration has not scaffolded yet." >&2
-  echo "       Until then the plugin keeps running the Python server." >&2
+  echo "ERROR: $GO_DIR/go.mod not found." >&2
   exit 1
 fi
 
@@ -37,18 +35,12 @@ version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
 version="${version:-0.0.0-dev}"
 commit="$(git -C "$PLUGIN_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
-# The widget is embedded into the binary, so it must be built first.
-static_widget="$PLUGIN_ROOT/server/phone_agent/static/scrcpymac-app.html"
+# The widget is embedded into the binary, so always refresh it first.
+"$PLUGIN_ROOT/scripts/build-ui.sh"
 embed_target="$GO_DIR/internal/widget/assets/scrcpymac-app.html"
-if [[ -f "$static_widget" ]]; then
-  mkdir -p "$(dirname "$embed_target")"
-  if ! cmp -s "$static_widget" "$embed_target"; then
-    cp "$static_widget" "$embed_target"
-    echo "==> refreshed embedded widget from server/phone_agent/static/"
-  fi
-elif [[ ! -f "$embed_target" ]]; then
-  echo "WARN: no built widget found. Run scripts/build-ui.sh first, or the" >&2
-  echo "      binary will embed a stale/missing widget." >&2
+if [[ ! -s "$embed_target" ]]; then
+  echo "ERROR: widget build did not produce $embed_target" >&2
+  exit 1
 fi
 
 build_one() {
@@ -78,5 +70,4 @@ for f in "$PLUGIN_ROOT"/bin/darwin/*/phone-agent; do
   printf '    %s (%s)\n' "${f#$PLUGIN_ROOT/}" "$(file -b "$f" | cut -d, -f1-2)"
 done
 echo ""
-echo "Try it:   PHONE_AGENT_BACKEND=go $PLUGIN_ROOT/bin/phone-agent doctor"
-echo "Roll back: PHONE_AGENT_BACKEND=python (or delete bin/darwin/*/phone-agent)"
+echo "Try it: $PLUGIN_ROOT/bin/phone-agent doctor"

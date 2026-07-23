@@ -1,9 +1,8 @@
 // Command phone-agent is the ScrcpyMac Phone Agent plugin binary: the MCP
 // server plus the small CLI surface bin/phone-agent exposes.
 //
-// It replaces the Python server and its first-run bootstrap. Nothing is
-// installed at runtime: adb and scrcpy-server ship next to the binary and the
-// widget is embedded.
+// Nothing is installed at runtime: adb and scrcpy-server ship next to the
+// binary and the widget is embedded.
 //
 // Usage: phone-agent {mcp|doctor|devices|version}
 //
@@ -106,10 +105,8 @@ func runMCP(ctx context.Context) error {
 		// The listener must already be bound here: its port is baked into the
 		// widget resource's CSP connectDomains for the process lifetime, so
 		// binding after New would publish a CSP that forbids the very port the
-		// stream is served on. This mirrors the Python, which binds the
-		// loopback on the first line of register_scrcpymac_app. A failure is
-		// logged and returns 0, which leaves only the wildcard CSP entries —
-		// degraded, not fatal.
+		// stream is served on. A failure is logged and returns 0, which leaves
+		// only the wildcard CSP entries — degraded, not fatal.
 		LoopbackPort: scrcpy.EnsureDefaultLoopback(logger),
 	})
 	if err != nil {
@@ -135,8 +132,8 @@ func runMCP(ctx context.Context) error {
 // processes and a missing binary is reported on stderr rather than as a
 // mysterious per-tool failure.
 //
-// It is never fatal: the Python launcher behaves the same way, and the tools
-// report setup guidance in their own results. Auto-downloading platform-tools
+// It is never fatal: the tools report setup guidance in their own results.
+// Auto-downloading platform-tools
 // (PHONE_AGENT_AUTO_DOWNLOAD_ADB) is still handled by the bash launcher today;
 // the in-process downloader is a follow-up.
 func ensureADB(logger *slog.Logger) {
