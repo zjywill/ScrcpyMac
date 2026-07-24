@@ -1045,10 +1045,11 @@ func TestInputChangeScoreThresholdSeparatesSmallFromLargeChanges(t *testing.T) {
 	if got := inputChangeScore(base, half); got < inputChangeThreshold {
 		t.Errorf("half a screen scored %v, below the %v threshold", got, inputChangeThreshold)
 	}
-	// A band just over 3.5 % of the height must cross the threshold.
-	band := inputPatchPNG(t, w, h, inputBlack, image.Rect(0, 0, w, h*6/100), inputWhite)
+	// A compact 3%-height change, representative of a short chat bubble or
+	// send-button transition, must cross the threshold without a retry.
+	band := inputPatchPNG(t, w, h, inputBlack, image.Rect(0, 0, w, h*3/100), inputWhite)
 	if got := inputChangeScore(base, band); got < inputChangeThreshold {
-		t.Errorf("a 6%%-height band scored %v, below the %v threshold", got, inputChangeThreshold)
+		t.Errorf("a 3%%-height band scored %v, below the %v threshold", got, inputChangeThreshold)
 	}
 }
 
@@ -1105,6 +1106,9 @@ func TestInputSampleRGBHandlesSourcesSmallerThanTheGrid(t *testing.T) {
 type inputFakeRuntime struct {
 	status   InputRuntimeStatus
 	active   bool
+	started  int
+	stopped  int
+	startErr error
 	lastArgs []float64
 	lastKey  string
 	lastText string
@@ -1113,6 +1117,20 @@ type inputFakeRuntime struct {
 
 func (r *inputFakeRuntime) Status() InputRuntimeStatus { return r.status }
 func (r *inputFakeRuntime) IsActive() bool             { return r.active }
+
+func (r *inputFakeRuntime) StartForPaste(context.Context) error {
+	r.started++
+	if r.startErr != nil {
+		return r.startErr
+	}
+	r.active = true
+	return nil
+}
+
+func (r *inputFakeRuntime) Stop() {
+	r.stopped++
+	r.active = false
+}
 
 func (r *inputFakeRuntime) TapRelative(_ context.Context, x, y float64) (*jsonresult.Obj, error) {
 	if r.err != nil {
@@ -1202,6 +1220,57 @@ func TestInputRuntimePathIsUsedWhileStreaming(t *testing.T) {
 	}
 	if rt.lastText != "你好" {
 		t.Errorf("runtime paste text = %q", rt.lastText)
+	}
+	if rt.started != 0 || rt.stopped != 0 {
+		t.Errorf("active runtime start/stop = %d/%d, want 0/0", rt.started, rt.stopped)
+	}
+}
+
+func TestInputPasteStartsAndStopsTemporaryRuntime(t *testing.T) {
+	rt := &inputFakeRuntime{}
+	withInputRuntime(t, rt)
+	actions := newTestInputActions()
+
+	result, err := actions.paste(context.Background(), "你好")
+	if err != nil {
+		t.Fatalf("paste: %v", err)
+	}
+	if rt.started != 1 || rt.stopped != 1 {
+		t.Fatalf("temporary runtime start/stop = %d/%d, want 1/1", rt.started, rt.stopped)
+	}
+	if rt.lastText != "你好" {
+		t.Errorf("runtime paste text = %q", rt.lastText)
+	}
+	if backend, _ := result.Get("backend"); backend != "plugin-control" {
+		t.Errorf("paste backend = %v, want plugin-control", backend)
+	}
+}
+
+func TestInputPasteStopsTemporaryRuntimeAfterPasteFailure(t *testing.T) {
+	rt := &inputFakeRuntime{err: fmt.Errorf("control send failed")}
+	withInputRuntime(t, rt)
+	actions := newTestInputActions()
+
+	_, err := actions.paste(context.Background(), "你好")
+	if err == nil || err.Error() != "control send failed" {
+		t.Fatalf("paste error = %v", err)
+	}
+	if rt.started != 1 || rt.stopped != 1 {
+		t.Errorf("temporary runtime start/stop = %d/%d, want 1/1", rt.started, rt.stopped)
+	}
+}
+
+func TestInputPasteDoesNotStopRuntimeWhenTemporaryStartFails(t *testing.T) {
+	rt := &inputFakeRuntime{startErr: fmt.Errorf("start failed")}
+	withInputRuntime(t, rt)
+	actions := newTestInputActions()
+
+	_, err := actions.paste(context.Background(), "你好")
+	if err == nil || err.Error() != "start failed" {
+		t.Fatalf("paste error = %v", err)
+	}
+	if rt.started != 1 || rt.stopped != 0 {
+		t.Errorf("failed temporary runtime start/stop = %d/%d, want 1/0", rt.started, rt.stopped)
 	}
 }
 

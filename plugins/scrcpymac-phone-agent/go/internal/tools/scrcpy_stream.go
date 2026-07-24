@@ -52,9 +52,9 @@ func registerStreamTools(s *mcp.Server, env *mcpserver.Env) error {
 	// stream comes up. Miss one and that group silently keeps taking the adb
 	// path forever — phone_backend reporting "adb" mid-stream, phone_tap going
 	// through `input tap` instead of the control socket.
-	SetStreamRuntime(streamAdapter{runtime: runtime})      // the app-only scrcpymac_ui_* tools
-	SetInputRuntime(inputStreamAdapter{runtime: runtime})  // phone_tap/swipe/key/type/paste
-	SetDeviceStreamStatus(deviceStreamStatusFrom(runtime)) // phone_backend, phone_device_info
+	SetStreamRuntime(streamAdapter{runtime: runtime})               // the app-only scrcpymac_ui_* tools
+	SetInputRuntime(inputStreamAdapter{runtime: runtime, env: env}) // phone_tap/swipe/key/type/paste
+	SetDeviceStreamStatus(deviceStreamStatusFrom(runtime))          // phone_backend, phone_device_info
 
 	// The single guarantee that nothing outlives the process: the scrcpy
 	// app_process on the device, its adb forward, the loopback listener and
@@ -233,7 +233,10 @@ func streamObjFloat(payload *jsonresult.Obj, key string) jsonresult.Float {
 // It is a second adapter rather than more methods on streamAdapter because both
 // interfaces declare Status() with different return types — one Go type cannot
 // satisfy both.
-type inputStreamAdapter struct{ runtime *scrcpy.Runtime }
+type inputStreamAdapter struct {
+	runtime *scrcpy.Runtime
+	env     *mcpserver.Env
+}
 
 var _ InputRuntime = inputStreamAdapter{}
 
@@ -253,6 +256,21 @@ func (a inputStreamAdapter) Status() InputRuntimeStatus {
 // paste() branch on. Metadata is assigned under the same lock hold that sets the
 // state, so in practice this never disagrees with Status().Streaming.
 func (a inputStreamAdapter) IsActive() bool { return a.runtime.IsActive("") }
+
+func (a inputStreamAdapter) StartForPaste(ctx context.Context) error {
+	client, err := a.env.ADB()
+	if err != nil {
+		return err
+	}
+	serial, err := client.EnsureDevice(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = a.runtime.Start(ctx, serial, 30, 25)
+	return err
+}
+
+func (a inputStreamAdapter) Stop() { a.runtime.Stop() }
 
 func (a inputStreamAdapter) TapRelative(_ context.Context, x, y float64) (*jsonresult.Obj, error) {
 	return a.runtime.TapRelative(x, y)

@@ -63,14 +63,16 @@ const (
 	inputTapMaxRetries = 4
 
 	// inputChangeThreshold is the fraction of resampled cells that must differ
-	// before a tap counts as having changed the screen.
-	inputChangeThreshold = 0.035
+	// before a tap counts as having changed the screen. A real WeChat send
+	// changed 2.96% of the sampled screen; the old 3.5% threshold retried into
+	// the adjacent control revealed after the message was sent.
+	inputChangeThreshold = 0.02
 	// inputChangeChannelDelta is the per-channel absolute difference that makes
 	// one resampled cell "changed".
 	inputChangeChannelDelta = 20
 	// The resample target is a FIXED 72x128 — aspect ratio is deliberately not
 	// preserved, so a 1080x2280 screen is squashed horizontally. Do not "fix"
-	// it: the 0.035 threshold is calibrated against this exact grid.
+	// it: the threshold is calibrated against this exact grid.
 	inputSampleW      = 72
 	inputSampleH      = 128
 	inputSamplePixels = inputSampleW * inputSampleH // 9216
@@ -139,6 +141,11 @@ type InputRuntime interface {
 	// paste() branch on this rather than on Status().Streaming, matching the
 	// Python.
 	IsActive() bool
+	// StartForPaste brings up a temporary control session when the device does
+	// not implement `cmd clipboard`. The caller stops it after the clipboard
+	// message has had time to reach scrcpy-server.
+	StartForPaste(ctx context.Context) error
+	Stop()
 
 	TapRelative(ctx context.Context, x, y float64) (*jsonresult.Obj, error)
 	SwipeRelative(ctx context.Context, x1, y1, x2, y2 float64, durationMS int) (*jsonresult.Obj, error)
@@ -877,10 +884,23 @@ func (a *inputActions) paste(ctx context.Context, text string) (*jsonresult.Obj,
 	if text == "" {
 		return nil, &adb.Error{Msg: "text must not be empty"}
 	}
-	if rt := inputRuntime(); rt != nil && rt.IsActive() {
+	if rt := inputRuntime(); rt != nil {
+		startedForPaste := false
+		if !rt.IsActive() {
+			if err := rt.StartForPaste(ctx); err != nil {
+				return nil, inputWrapRuntimeError(err)
+			}
+			startedForPaste = true
+			defer rt.Stop()
+		}
 		result, err := rt.Paste(ctx, text)
 		if err != nil {
 			return nil, inputWrapRuntimeError(err)
+		}
+		if startedForPaste {
+			if err := a.sleep(ctx, inputPasteSettle); err != nil {
+				return nil, err
+			}
 		}
 		inputScreenMutated()
 		return result, nil
