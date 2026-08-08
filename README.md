@@ -64,29 +64,21 @@ Or build a shareable DMG (includes adb and scrcpy-server):
 - Or connect directly to a device already in TCP mode by entering its
   `ip:port`.
 
-## Separate Codex plugin
+## Want your phone in an AI client instead?
 
-The repository also contains **ScrcpyMac Phone Agent**, a separate Codex/Cursor
-plugin. It owns its own scrcpy-server, H.264 stream, control socket, and
-lifecycle; it does not call, launch, install from, or share a session with this
-App.
+**ScrcpyMac Phone Agent** is a separate MCP plugin that opens the same phone
+stream inside Codex, Cursor, or Claude and lets a model drive it — taps,
+screenshots, UI automation, WeChat workflows. It lives in its own repository:
 
-Install the plugin independently:
+**→ [zjywill/scrcpy-phone-agent](https://github.com/zjywill/scrcpy-phone-agent)**
 
 ```sh
-cd plugins/scrcpymac-phone-agent
-./scripts/install.sh
+codex plugin marketplace add zjywill/scrcpy-phone-agent
 ```
 
-- **Cursor**: `install.sh` links it automatically; reload and enable
-  *scrcpymac-phone-agent* under MCP.
-- **Codex**: `codex plugin marketplace add zjywill/scrcpyMac`, then install
-  *ScrcpyMac Phone Agent* from Plugins.
-- **Other MCP hosts**: point the MCP config at
-  `plugins/scrcpymac-phone-agent/mcp-server.sh`.
-
-Full tool list, skills, and troubleshooting:
-[plugins/scrcpymac-phone-agent/README.md](plugins/scrcpymac-phone-agent/README.md)
+The plugin owns its own scrcpy-server, H.264 stream, control socket, and
+lifecycle. It does not call, launch, install from, or share a session with this
+App — installing one has no effect on the other.
 
 ## Troubleshooting
 

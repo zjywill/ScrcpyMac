@@ -1,5 +1,0 @@
-# Linux adb is a local dev/CI download. The universal macOS adb is shipped.
-bin/linux/**/adb
-node_modules/
-dist/
-build/

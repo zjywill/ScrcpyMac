@@ -1,8 +1,0 @@
-{
-  "ok": true,
-  "xml": "",
-  "serial": "2f019965",
-  "parse_error": true,
-  "degraded": true,
-  "hint": "UI dump was empty or unparseable. Retry phone_ui_tree or fall back to phone_screenshot for vision."
-}
