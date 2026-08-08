@@ -1,0 +1,2991 @@
+{
+  "schemaVersion": 1,
+  "contractSource": {
+    "implementation": "python",
+    "pluginVersion": "0.7.2",
+    "mcpSdk": "mcp==1.28.1 (FastMCP)",
+    "capturedFrom": [
+      "server/phone_agent/server.py",
+      "server/phone_agent/mcp_ui.py",
+      "server/phone_agent/actions.py",
+      "server/phone_agent/adb.py",
+      "server/phone_agent/doctor.py",
+      "server/phone_agent/scrcpy_runtime.py",
+      "server/phone_agent/recipes/wechat.py"
+    ],
+    "method": "live tools/list + tools/call + resources/read against the running FastMCP server"
+  },
+  "server": {
+    "name": "scrcpymac-phone-agent",
+    "instructions": "Control a connected Android phone. The plugin owns its standalone scrcpy H.264 and control session; ScrcpyMac.app is not required. ADB remains available for screenshots and accessibility automation. For Chinese text, use phone_paste. WeChat: com.tencent.mm.",
+    "versionReported": "the installed mcp SDK version (FastMCP passes no explicit version); Go should report the plugin version instead -- see mcp-contract.md",
+    "capabilities": {
+      "tools": {
+        "listChanged": false
+      },
+      "resources": {
+        "subscribe": false,
+        "listChanged": false
+      },
+      "prompts": {
+        "listChanged": false
+      },
+      "experimental": {}
+    },
+    "prompts": [],
+    "resourceTemplates": []
+  },
+  "jsonResult": {
+    "producer": "phone_agent.actions.json_result",
+    "python": "json.dumps(payload, ensure_ascii=False, indent=2)",
+    "goEquivalent": "encoding/json Encoder with SetIndent(\"\", \"  \") and SetEscapeHTML(false), minus the trailing newline",
+    "indent": 2,
+    "ensureAscii": false,
+    "sortKeys": false,
+    "keyOrder": "insertion order of the Python dict -- NOT alphabetical. Go must preserve it.",
+    "trailingNewline": false
+  },
+  "okWrapper": {
+    "helper": "server.py::_ok",
+    "behaviour": "payload.setdefault(\"ok\", True) then json_result(payload)",
+    "consequence": "\"ok\" is APPENDED LAST when the action payload did not already carry it (phone_backend, phone_list_devices, phone_device_info, phone_screenshot, phone_current_app) and stays FIRST when it did (every actions.* payload)."
+  },
+  "errWrapper": {
+    "helper": "server.py::_err",
+    "behaviour": "json_result({\"ok\": False, \"error\": str(exc)})",
+    "caughtExceptions": [
+      "AdbError",
+      "OSError"
+    ],
+    "isError": false,
+    "note": "Every phone_* tool except phone_doctor wraps its body in try/except (AdbError, OSError). The MCP-level isError stays FALSE; failure is carried in the JSON body only."
+  },
+  "resource": {
+    "uri": "ui://widget/scrcpymac/app.html",
+    "name": "scrcpymac-app",
+    "title": "ScrcpyMac",
+    "description": "Interactive Android mirroring and control workspace.",
+    "mimeType": "text/html;profile=mcp-app",
+    "meta": {
+      "ui": {
+        "prefersBorder": false,
+        "csp": {
+          "connectDomains": [
+            "http://127.0.0.1:${LOOPBACK_PORT}",
+            "ws://127.0.0.1:${LOOPBACK_PORT}",
+            "http://localhost:${LOOPBACK_PORT}",
+            "ws://localhost:${LOOPBACK_PORT}",
+            "http://127.0.0.1:*",
+            "ws://127.0.0.1:*",
+            "http://localhost:*",
+            "ws://localhost:*"
+          ],
+          "resourceDomains": [
+            "data:",
+            "blob:"
+          ]
+        }
+      },
+      "openai/widgetDescription": "Full ScrcpyMac phone control workspace.",
+      "openai/widgetPrefersBorder": false,
+      "openai/widgetCSP": {
+        "connect_domains": [
+          "http://127.0.0.1:${LOOPBACK_PORT}",
+          "ws://127.0.0.1:${LOOPBACK_PORT}",
+          "http://localhost:${LOOPBACK_PORT}",
+          "ws://localhost:${LOOPBACK_PORT}",
+          "http://127.0.0.1:*",
+          "ws://127.0.0.1:*",
+          "http://localhost:*",
+          "ws://localhost:*"
+        ],
+        "resource_domains": [
+          "data:",
+          "blob:"
+        ]
+      }
+    },
+    "contentSource": "go/internal/widget/assets/scrcpymac-app.html (single self-contained file embedded in the Go binary)",
+    "missingFileError": "ScrcpyMac widget build is missing. Run scripts/build-ui.sh.",
+    "connectDomainsOrdering": "connectDomains/connect_domains are computed ONCE at registration time by ScrcpyRuntime.stream_connect_domains(), which calls _ensure_loopback() and binds 127.0.0.1:0. register_scrcpymac_app runs at import of phone_agent.server (line 57), BEFORE any @mcp.tool decorator and long before any stream starts. The literal port baked into the CSP is therefore the loopback port allocated at process start. ScrcpyRuntime.close() nils _loopback, so a subsequent _ensure_loopback() would bind a DIFFERENT port while the resource _meta still advertises the old one. The wildcard entries (http://127.0.0.1:*, ws://127.0.0.1:* and the localhost variants) are what actually keep the widget working today -- a live suspect in the 1 FPS investigation."
+  },
+  "toolOrder": [
+    "open_scrcpymac",
+    "scrcpymac_ui_state",
+    "scrcpymac_ui_select_device",
+    "scrcpymac_ui_start_stream",
+    "scrcpymac_ui_stream_status",
+    "scrcpymac_ui_stream_pull",
+    "scrcpymac_ui_stop_stream",
+    "scrcpymac_ui_snapshot",
+    "scrcpymac_ui_tap",
+    "scrcpymac_ui_swipe",
+    "scrcpymac_ui_key",
+    "scrcpymac_ui_paste",
+    "scrcpymac_ui_connect_wifi",
+    "phone_backend",
+    "phone_doctor",
+    "phone_list_devices",
+    "phone_device_info",
+    "phone_screenshot",
+    "phone_tap",
+    "phone_tap_relative",
+    "phone_tap_image",
+    "phone_swipe",
+    "phone_long_press",
+    "phone_key",
+    "phone_type",
+    "phone_paste",
+    "phone_launch_app",
+    "phone_current_app",
+    "phone_ui_tree",
+    "phone_find_and_tap",
+    "phone_wait_for_text",
+    "phone_shell",
+    "phone_send_wechat",
+    "phone_enable_wifi_adb",
+    "phone_get_device_ip",
+    "phone_connect_wifi",
+    "phone_disconnect_wifi"
+  ],
+  "toolCounts": {
+    "total": 37,
+    "phone": 24,
+    "openScrcpymac": 1,
+    "scrcpymacUi": 12
+  },
+  "tools": [
+    {
+      "name": "open_scrcpymac",
+      "title": "Open ScrcpyMac",
+      "description": "Open the complete ScrcpyMac phone workspace in Codex.",
+      "params": [
+        {
+          "name": "display_mode",
+          "jsonType": "string",
+          "goType": "string",
+          "required": false,
+          "default": "fullscreen",
+          "schemaTitle": "Display Mode"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "display_mode": {
+            "default": "fullscreen",
+            "title": "Display Mode",
+            "type": "string"
+          }
+        },
+        "title": "open_scrcpymacArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "annotations": {
+        "title": null,
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "meta": {
+        "ui": {
+          "resourceUri": "ui://widget/scrcpymac/app.html",
+          "visibility": [
+            "model",
+            "app"
+          ]
+        },
+        "ui/resourceUri": "ui://widget/scrcpymac/app.html",
+        "openai/outputTemplate": "ui://widget/scrcpymac/app.html",
+        "openai/widgetAccessible": true,
+        "openai/toolInvocation/invoking": "Opening ScrcpyMac...",
+        "openai/toolInvocation/invoked": "ScrcpyMac ready"
+      },
+      "resultShape": "structured",
+      "textBlock": "Opened the ScrcpyMac widget.",
+      "resultKeys": [
+        "ok",
+        "widget",
+        "preferredDisplayMode",
+        "phase"
+      ],
+      "errorResultKeys": [],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model",
+        "app"
+      ],
+      "notes": [
+        "display_mode is normalised: any value other than \"inline\" or \"fullscreen\" becomes \"fullscreen\".",
+        "widget is always the literal \"scrcpymac-app\"; phase is always the literal \"standalone-h264-stream\".",
+        "Cannot fail: there is no try/except and no device access."
+      ]
+    },
+    {
+      "name": "scrcpymac_ui_state",
+      "title": "Read ScrcpyMac UI state",
+      "description": "Return device discovery and backend state for the ScrcpyMac widget.",
+      "params": [],
+      "inputSchema": {
+        "properties": {},
+        "title": "scrcpymac_ui_stateArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "annotations": {
+        "title": null,
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "meta": {
+        "ui": {
+          "visibility": [
+            "app"
+          ]
+        }
+      },
+      "resultShape": "structured",
+      "textBlock": "Read ScrcpyMac device state.",
+      "resultKeys": [
+        "ok",
+        "backend",
+        "selectedSerial",
+        "devices",
+        "stream"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "backend",
+        "selectedSerial",
+        "devices",
+        "stream",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "app"
+      ],
+      "notes": [
+        "IMPORTANT: on AdbError/OSError this tool returns isError=FALSE with ok=false, a populated \"error\" string, devices=[] and the full stream status. It does NOT use the _error() helper. The text block on that path is str(exc), not a sentence.",
+        "devices[] items are {serial,state,model,product}.",
+        "stream is the full ScrcpyRuntime.status() payload (see streamStatusKeys)."
+      ]
+    },
+    {
+      "name": "scrcpymac_ui_select_device",
+      "title": "Select ScrcpyMac device",
+      "description": "Select the Android serial used by subsequent widget actions.",
+      "params": [
+        {
+          "name": "serial",
+          "jsonType": "string",
+          "goType": "string",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Serial"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "serial": {
+            "title": "Serial",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serial"
+        ],
+        "title": "scrcpymac_ui_select_deviceArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "annotations": {
+        "title": null,
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "meta": {
+        "ui": {
+          "visibility": [
+            "app"
+          ]
+        }
+      },
+      "resultShape": "structured",
+      "textBlock": "Selected Android device {serial}.",
+      "resultKeys": [
+        "ok",
+        "serial",
+        "device"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": true,
+      "visibility": [
+        "app"
+      ],
+      "notes": [
+        "device is the matching {serial,state,model,product} entry from adb devices -l.",
+        "Errors: empty serial -> \"device serial must not be empty\"; unknown serial -> \"Android device not found: {serial}\"; wrong state -> \"Android device is {state}: {serial}\"."
+      ]
+    },
+    {
+      "name": "scrcpymac_ui_start_stream",
+      "title": "Start standalone ScrcpyMac stream",
+      "description": "Start the plugin-owned scrcpy H.264 and control session.",
+      "params": [
+        {
+          "name": "serial",
+          "jsonType": "string",
+          "goType": "string",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Serial"
+        },
+        {
+          "name": "max_fps",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 60,
+          "schemaTitle": "Max Fps"
+        },
+        {
+          "name": "resolution_percent",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 50,
+          "schemaTitle": "Resolution Percent"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "serial": {
+            "title": "Serial",
+            "type": "string"
+          },
+          "max_fps": {
+            "default": 60,
+            "title": "Max Fps",
+            "type": "integer"
+          },
+          "resolution_percent": {
+            "default": 50,
+            "title": "Resolution Percent",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "serial"
+        ],
+        "title": "scrcpymac_ui_start_streamArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "annotations": {
+        "title": null,
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "meta": {
+        "ui": {
+          "visibility": [
+            "app"
+          ]
+        }
+      },
+      "resultShape": "structured",
+      "textBlock": "Started the standalone ScrcpyMac H.264 stream.",
+      "resultKeys": [
+        "ok",
+        "state",
+        "backend",
+        "encoding",
+        "error",
+        "fps",
+        "frames",
+        "serial",
+        "deviceName",
+        "deviceWidth",
+        "deviceHeight",
+        "frameWidth",
+        "frameHeight",
+        "maxFps",
+        "resolutionPercent",
+        "codec",
+        "streamUrl"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": true,
+      "visibility": [
+        "app"
+      ],
+      "notes": [
+        "Selects the device first (actions.select_device(serial)), then runtime.start().",
+        "max_fps is snapped: >=45 -> 60, otherwise 30. resolution_percent is clamped to [25,100].",
+        "Returns ScrcpyRuntime.status() taken immediately after the video thread starts."
+      ]
+    },
+    {
+      "name": "scrcpymac_ui_stream_status",
+      "title": "Read standalone ScrcpyMac stream status",
+      "description": "Read the plugin-owned H.264 stream state and measured FPS.",
+      "params": [],
+      "inputSchema": {
+        "properties": {},
+        "title": "scrcpymac_ui_stream_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "annotations": {
+        "title": null,
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "meta": {
+        "ui": {
+          "visibility": [
+            "app"
+          ]
+        }
+      },
+      "resultShape": "structured",
+      "textBlock": "Read the standalone ScrcpyMac stream status.",
+      "resultKeys": [
+        "ok",
+        "state",
+        "backend",
+        "encoding",
+        "error",
+        "fps",
+        "frames"
+      ],
+      "errorResultKeys": [],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "app"
+      ],
+      "notes": [
+        "No try/except: this tool cannot return isError.",
+        "The 7 base keys are always present. serial/deviceName/deviceWidth/deviceHeight/frameWidth/frameHeight/maxFps/resolutionPercent/codec are added only while _meta is set. streamUrl is added only when state==\"streaming\" AND a loopback port AND a token exist."
+      ]
+    },
+    {
+      "name": "scrcpymac_ui_stream_pull",
+      "title": "Pull standalone ScrcpyMac H.264 packets",
+      "description": "Long-poll a bounded H.264 packet batch through the MCP Apps bridge.",
+      "params": [
+        {
+          "name": "max_bytes",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 524288,
+          "schemaTitle": "Max Bytes"
+        },
+        {
+          "name": "timeout_ms",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 250,
+          "schemaTitle": "Timeout Ms"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "max_bytes": {
+            "default": 524288,
+            "title": "Max Bytes",
+            "type": "integer"
+          },
+          "timeout_ms": {
+            "default": 250,
+            "title": "Timeout Ms",
+            "type": "integer"
+          }
+        },
+        "title": "scrcpymac_ui_stream_pullArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "annotations": {
+        "title": null,
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "meta": {
+        "ui": {
+          "visibility": [
+            "app"
+          ]
+        }
+      },
+      "resultShape": "structured",
+      "textBlock": "Pulled a standalone ScrcpyMac H.264 packet batch.",
+      "resultKeys": [
+        "ok",
+        "state",
+        "backend",
+        "encoding",
+        "error",
+        "fps",
+        "frames",
+        "frameWidth",
+        "frameHeight",
+        "codec",
+        "transport",
+        "packetCount",
+        "sizeBytes",
+        "droppedGops",
+        "droppedPackets"
+      ],
+      "resultMeta": {
+        "scrcpymac/h264": {
+          "dataBase64": "base64-encoded concatenated 14-byte-header H.264 application packets"
+        }
+      },
+      "errorResultKeys": [],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "app"
+      ],
+      "notes": [
+        "The H.264 bytes are returned only in CallToolResult._meta so the component receives them without adding video data to model-visible content.",
+        "This is the native Codex transport when the sandbox cannot connect directly to the plugin loopback WebSocket."
+      ]
+    },
+    {
+      "name": "scrcpymac_ui_stop_stream",
+      "title": "Stop standalone ScrcpyMac stream",
+      "description": "Stop the plugin-owned scrcpy session and release its adb forward.",
+      "params": [],
+      "inputSchema": {
+        "properties": {},
+        "title": "scrcpymac_ui_stop_streamArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "annotations": {
+        "title": null,
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "meta": {
+        "ui": {
+          "visibility": [
+            "app"
+          ]
+        }
+      },
+      "resultShape": "structured",
+      "textBlock": "Stopped the standalone ScrcpyMac stream.",
+      "resultKeys": [
+        "ok",
+        "state",
+        "backend",
+        "encoding",
+        "error",
+        "fps",
+        "frames"
+      ],
+      "errorResultKeys": [],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "app"
+      ],
+      "notes": [
+        "runtime.stop() clears _meta on a clean stop, so the device/frame keys disappear; after an error stop the state is \"error\", _meta is retained and those keys remain."
+      ]
+    },
+    {
+      "name": "scrcpymac_ui_snapshot",
+      "title": "Capture ScrcpyMac preview frame",
+      "description": "Capture a compressed frame for the ScrcpyMac widget.",
+      "params": [
+        {
+          "name": "max_width",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 540,
+          "schemaTitle": "Max Width"
+        },
+        {
+          "name": "quality",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 60,
+          "schemaTitle": "Quality"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "max_width": {
+            "default": 540,
+            "title": "Max Width",
+            "type": "integer"
+          },
+          "quality": {
+            "default": 60,
+            "title": "Quality",
+            "type": "integer"
+          }
+        },
+        "title": "scrcpymac_ui_snapshotArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "annotations": {
+        "title": null,
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "meta": {
+        "ui": {
+          "visibility": [
+            "app"
+          ]
+        }
+      },
+      "resultShape": "structured",
+      "textBlock": "Captured a ScrcpyMac preview frame.",
+      "resultKeys": [
+        "ok",
+        "serial",
+        "backend",
+        "deviceWidth",
+        "deviceHeight",
+        "frameWidth",
+        "frameHeight",
+        "mimeType",
+        "dataBase64",
+        "sizeBytes"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": true,
+      "visibility": [
+        "app"
+      ],
+      "notes": [
+        "max_width clamped to [320,1200]; quality clamped to [45,90] BEFORE use.",
+        "PhoneActions.preview_frame ignores both arguments and returns a full adb screencap PNG; _preview_frame then downscales to max_width (BILINEAR, only if wider) and re-encodes JPEG at the clamped quality with optimize=False. mimeType is then \"image/jpeg\".",
+        "If the shot dict carries \"image_bytes\" (a future H.264-derived path) the bytes are passed through untouched and mimeType comes from shot[\"mime_type\"] defaulting to \"image/jpeg\".",
+        "The base64 payload appears ONLY in structuredContent.dataBase64, never in the text block."
+      ]
+    },
+    {
+      "name": "scrcpymac_ui_tap",
+      "title": "Tap ScrcpyMac preview",
+      "description": "Tap normalized preview coordinates.",
+      "params": [
+        {
+          "name": "x",
+          "jsonType": "number",
+          "goType": "float64",
+          "required": true,
+          "default": null,
+          "schemaTitle": "X"
+        },
+        {
+          "name": "y",
+          "jsonType": "number",
+          "goType": "float64",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Y"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "x": {
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "scrcpymac_ui_tapArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "annotations": {
+        "title": null,
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "meta": {
+        "ui": {
+          "visibility": [
+            "app"
+          ]
+        }
+      },
+      "resultShape": "structured",
+      "textBlock": "Tapped the Android screen.",
+      "resultKeys": [
+        "ok",
+        "action",
+        "serial",
+        "point",
+        "coordinateSpace",
+        "backend"
+      ],
+      "resultKeysFallback": [
+        "ok",
+        "coordinate_space",
+        "source",
+        "device_point",
+        "tap"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": true,
+      "visibility": [
+        "app"
+      ],
+      "notes": [
+        "Two different payload shapes. When runtime.is_active(): runtime.tap_relative() -> {ok,action,serial,point,coordinateSpace,backend} with backend=\"plugin-control\". Otherwise actions.tap_relative(x,y,verify=False,retries=0) -> {ok,coordinate_space,source,device_point,tap}.",
+        "Runtime path clamps x/y to [0,1]. adb path REJECTS out-of-range with \"relative x and y must be between 0 and 1\"."
+      ]
+    },
+    {
+      "name": "scrcpymac_ui_swipe",
+      "title": "Swipe ScrcpyMac preview",
+      "description": "Swipe between normalized preview coordinates.",
+      "params": [
+        {
+          "name": "x1",
+          "jsonType": "number",
+          "goType": "float64",
+          "required": true,
+          "default": null,
+          "schemaTitle": "X1"
+        },
+        {
+          "name": "y1",
+          "jsonType": "number",
+          "goType": "float64",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Y1"
+        },
+        {
+          "name": "x2",
+          "jsonType": "number",
+          "goType": "float64",
+          "required": true,
+          "default": null,
+          "schemaTitle": "X2"
+        },
+        {
+          "name": "y2",
+          "jsonType": "number",
+          "goType": "float64",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Y2"
+        },
+        {
+          "name": "duration_ms",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 300,
+          "schemaTitle": "Duration Ms"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "x1": {
+            "title": "X1",
+            "type": "number"
+          },
+          "y1": {
+            "title": "Y1",
+            "type": "number"
+          },
+          "x2": {
+            "title": "X2",
+            "type": "number"
+          },
+          "y2": {
+            "title": "Y2",
+            "type": "number"
+          },
+          "duration_ms": {
+            "default": 300,
+            "title": "Duration Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "x1",
+          "y1",
+          "x2",
+          "y2"
+        ],
+        "title": "scrcpymac_ui_swipeArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "annotations": {
+        "title": null,
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "meta": {
+        "ui": {
+          "visibility": [
+            "app"
+          ]
+        }
+      },
+      "resultShape": "structured",
+      "textBlock": "Swiped the Android screen.",
+      "resultKeys": [
+        "ok",
+        "action",
+        "serial",
+        "from",
+        "to",
+        "durationMs",
+        "backend"
+      ],
+      "resultKeysFallback": [
+        "ok",
+        "action",
+        "from",
+        "to",
+        "duration_ms",
+        "serial"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": true,
+      "visibility": [
+        "app"
+      ],
+      "notes": [
+        "All four coordinates are validated 0<=v<=1 first -> AdbError \"swipe coordinates must be between 0 and 1\".",
+        "duration_ms clamped to [0,10000].",
+        "Runtime path -> camelCase durationMs, backend=\"plugin-control\". adb fallback -> snake_case duration_ms, no backend key; it converts to device pixels via round(v*(size-1)) using device_info()[\"screen\"].",
+        "The except clause also catches KeyError/TypeError/ValueError."
+      ]
+    },
+    {
+      "name": "scrcpymac_ui_key",
+      "title": "Press ScrcpyMac navigation key",
+      "description": "Press an Android navigation or hardware key.",
+      "params": [
+        {
+          "name": "name",
+          "jsonType": "string",
+          "goType": "string",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Name"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "scrcpymac_ui_keyArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "annotations": {
+        "title": null,
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "meta": {
+        "ui": {
+          "visibility": [
+            "app"
+          ]
+        }
+      },
+      "resultShape": "structured",
+      "textBlock": "Pressed Android key {name}.",
+      "resultKeys": [
+        "ok",
+        "action",
+        "key",
+        "serial",
+        "backend"
+      ],
+      "resultKeysFallback": [
+        "ok",
+        "action",
+        "key",
+        "code",
+        "serial"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": true,
+      "visibility": [
+        "app"
+      ],
+      "notes": [
+        "Runtime path (runtime.key) supports back,home,recents,enter,delete,tab,menu,power,volume_up,volume_down -- NOT \"paste\". adb path (actions.key) supports the same set PLUS \"paste\" (keycode 279).",
+        "Unknown key error text differs by path: ScrcpyRuntimeError/AdbError \"Unknown key {name!r}. Supported: <comma-separated list>\" where the list is the runtime's 10 keys or actions' 11 keys respectively."
+      ]
+    },
+    {
+      "name": "scrcpymac_ui_paste",
+      "title": "Paste text through ScrcpyMac",
+      "description": "Paste text into the focused Android field.",
+      "params": [
+        {
+          "name": "text",
+          "jsonType": "string",
+          "goType": "string",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Text"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "scrcpymac_ui_pasteArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "annotations": {
+        "title": null,
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "meta": {
+        "ui": {
+          "visibility": [
+            "app"
+          ]
+        }
+      },
+      "resultShape": "structured",
+      "textBlock": "Pasted text into Android.",
+      "resultKeys": [
+        "ok",
+        "action",
+        "length",
+        "serial",
+        "backend"
+      ],
+      "resultKeysFallback": [
+        "ok",
+        "action",
+        "length",
+        "serial"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": true,
+      "visibility": [
+        "app"
+      ],
+      "notes": [
+        "length is len(text) in Unicode code points (Python), NOT bytes. Go must count runes.",
+        "Empty text -> error \"text must not be empty\"."
+      ]
+    },
+    {
+      "name": "scrcpymac_ui_connect_wifi",
+      "title": "Connect ScrcpyMac over Wi-Fi",
+      "description": "Connect adb to an Android device over Wi-Fi.",
+      "params": [
+        {
+          "name": "host",
+          "jsonType": "string",
+          "goType": "string",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Host"
+        },
+        {
+          "name": "port",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 5555,
+          "schemaTitle": "Port"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "port": {
+            "default": 5555,
+            "title": "Port",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "host"
+        ],
+        "title": "scrcpymac_ui_connect_wifiArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "annotations": {
+        "title": null,
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "meta": {
+        "ui": {
+          "visibility": [
+            "app"
+          ]
+        }
+      },
+      "resultShape": "structured",
+      "textBlock": "Connected to Android over Wi-Fi.",
+      "resultKeys": [
+        "ok",
+        "action",
+        "target",
+        "output"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": true,
+      "visibility": [
+        "app"
+      ],
+      "notes": [
+        "host is .strip()ped before use. target = host if it already contains ':' else f\"{host}:{port}\".",
+        "output is the trimmed stdout of `adb connect <target>`."
+      ]
+    },
+    {
+      "name": "phone_backend",
+      "title": null,
+      "description": "Report whether the standalone H.264 runtime or adb fallback is active.",
+      "params": [],
+      "inputSchema": {
+        "properties": {},
+        "title": "phone_backendArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_backendOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "backend",
+        "ok"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "backend is \"plugin-h264\" while streaming, otherwise \"adb\"."
+      ]
+    },
+    {
+      "name": "phone_doctor",
+      "title": null,
+      "description": "Run environment diagnostics for adb, the connected device, and bundled runtime assets.",
+      "params": [],
+      "inputSchema": {
+        "properties": {},
+        "title": "phone_doctorArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_doctorOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "version",
+        "backend",
+        "checks",
+        "summary",
+        "uv_available"
+      ],
+      "resultKeysFallback": [
+        "ok",
+        "version",
+        "checks",
+        "summary"
+      ],
+      "errorResultKeys": [],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "NOT wrapped by _ok/_err: it is json_result(run_doctor()) directly, so \"ok\" is FIRST here.",
+        "Early return when adb cannot be resolved: only {ok:false, version, checks, summary:\"adb is required before controlling a phone\"} -- no backend, no uv_available.",
+        "checks[] items are {name, ok, detail} plus optional extras: scrcpy_server/adb add \"bundled\" (bool), device adds \"devices\" (list), foreground_app adds \"activity\".",
+        "Check names in order: platform, python, mcp_package, scrcpy_server, adb, adb_version, device, then screen_size + foreground_app only when exactly one device is ready, then runtime_architecture (which also carries backend=\"plugin-h264\").",
+        "backend = \"plugin-h264-ready\" when scrcpy-server resolved, else \"adb\".",
+        "ok = all checks ok EXCLUDING the foreground_app check.",
+        "version is phone_agent.__version__ (currently \"0.7.2\").",
+        "No try/except: an unexpected exception surfaces as a real isError=true result."
+      ]
+    },
+    {
+      "name": "phone_list_devices",
+      "title": null,
+      "description": "List Android devices visible to adb.",
+      "params": [],
+      "inputSchema": {
+        "properties": {},
+        "title": "phone_list_devicesArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_list_devicesOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "devices",
+        "ok"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "devices[] items are {serial,state,model,product}; model/product default to \"\"."
+      ]
+    },
+    {
+      "name": "phone_device_info",
+      "title": null,
+      "description": "Get connected device serial, screen size, and foreground app.",
+      "params": [],
+      "inputSchema": {
+        "properties": {},
+        "title": "phone_device_infoArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_device_infoOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "serial",
+        "screen",
+        "video",
+        "foreground",
+        "backend",
+        "ok"
+      ],
+      "resultKeysFallback": [
+        "serial",
+        "screen",
+        "foreground",
+        "backend",
+        "ok"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "While streaming: backend=\"plugin-h264\", screen={width,height} from the native size, and an extra video={width,height,fps,codec}.",
+        "Otherwise: backend=\"adb\", screen={width,height} from the current WindowManager display coordinate space, no video key.",
+        "foreground is always {package,activity,raw}."
+      ]
+    },
+    {
+      "name": "phone_screenshot",
+      "title": null,
+      "description": "Capture the device screen. Returns metadata JSON and optionally a PNG image.",
+      "params": [
+        {
+          "name": "include_image",
+          "jsonType": "boolean",
+          "goType": "bool",
+          "required": false,
+          "default": true,
+          "schemaTitle": "Include Image"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "include_image": {
+            "default": true,
+            "title": "Include Image",
+            "type": "boolean"
+          }
+        },
+        "title": "phone_screenshotArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "annotations": null,
+      "meta": null,
+      "resultShape": "text+image",
+      "resultKeys": [
+        "serial",
+        "width",
+        "height",
+        "format",
+        "size_bytes",
+        "ok"
+      ],
+      "resultKeysFallback": [
+        "serial",
+        "width",
+        "height",
+        "format",
+        "size_bytes",
+        "base64",
+        "ok"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "The ONLY tool in server.py with no return annotation, so FastMCP emits NO outputSchema and structuredContent is null on every path.",
+        "include_image=true -> content = [TextContent(json without base64), ImageContent(png)]. The ImageContent is {type:\"image\", data:<base64 png>, mimeType:\"image/png\"}.",
+        "include_image=false -> content = [TextContent(json WITH a \"base64\" key)] only.",
+        "format is always the literal \"png\"; size_bytes is len(png).",
+        "width and height are decoded from the PNG header and therefore match the exact screenshot coordinate space.",
+        "On AdbError/OSError only a single TextContent with {\"ok\":false,\"error\":...} is emitted (no image block), still isError=false."
+      ]
+    },
+    {
+      "name": "phone_tap",
+      "title": null,
+      "description": "Tap native device pixels. By default verifies a screen change and retries nearby.",
+      "params": [
+        {
+          "name": "x",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": true,
+          "default": null,
+          "schemaTitle": "X"
+        },
+        {
+          "name": "y",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Y"
+        },
+        {
+          "name": "verify",
+          "jsonType": "boolean",
+          "goType": "bool",
+          "required": false,
+          "default": true,
+          "schemaTitle": "Verify"
+        },
+        {
+          "name": "retries",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 2,
+          "schemaTitle": "Retries"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "x": {
+            "title": "X",
+            "type": "integer"
+          },
+          "y": {
+            "title": "Y",
+            "type": "integer"
+          },
+          "verify": {
+            "default": true,
+            "title": "Verify",
+            "type": "boolean"
+          },
+          "retries": {
+            "default": 2,
+            "title": "Retries",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "phone_tapArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_tapOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "action",
+        "x",
+        "y",
+        "serial"
+      ],
+      "resultKeysFallback": [
+        "ok",
+        "action",
+        "serial",
+        "point",
+        "coordinateSpace",
+        "backend"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "x/y are clamped to the device screen before tapping (max(0,min(size-1,v))).",
+        "Streaming path uses runtime.tap_relative(x/(w-1), y/(h-1)) and returns the plugin-control shape {ok,action,serial,point,coordinateSpace,backend}. adb path returns {ok,action,x,y,serial}.",
+        "verify=true adds a \"verification\" object to whichever shape came back:",
+        "  * baseline screenshot failed -> {requested:true, available:false, attempts:1} and 1 tap.",
+        "  * verified -> {requested:true, available:true, verified:true, attempts:[...], after_size_bytes:int}.",
+        "  * not verified -> {requested:true, available:true, verified:false, attempts:[...], hint:\"No screen change detected after tapping the target and nearby points.\"}.",
+        "attempts[] items are {point:[x,y], screen_changed:bool, change_score:float(4dp)}.",
+        "retries is clamped to [0,4] and selects the first retries+1 offsets from [(0,0),(0,-32),(0,32),(-32,0),(32,0)]; settle 0.45s between taps; change threshold 0.035 on a 72x128 RGB resample with per-pixel max-channel delta >= 20."
+      ]
+    },
+    {
+      "name": "phone_tap_relative",
+      "title": null,
+      "description": "Tap normalized screenshot coordinates where x and y are between 0 and 1.",
+      "params": [
+        {
+          "name": "x",
+          "jsonType": "number",
+          "goType": "float64",
+          "required": true,
+          "default": null,
+          "schemaTitle": "X"
+        },
+        {
+          "name": "y",
+          "jsonType": "number",
+          "goType": "float64",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Y"
+        },
+        {
+          "name": "verify",
+          "jsonType": "boolean",
+          "goType": "bool",
+          "required": false,
+          "default": true,
+          "schemaTitle": "Verify"
+        },
+        {
+          "name": "retries",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 2,
+          "schemaTitle": "Retries"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "x": {
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "title": "Y",
+            "type": "number"
+          },
+          "verify": {
+            "default": true,
+            "title": "Verify",
+            "type": "boolean"
+          },
+          "retries": {
+            "default": 2,
+            "title": "Retries",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "phone_tap_relativeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_tap_relativeOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "coordinate_space",
+        "source",
+        "device_point",
+        "tap"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "coordinate_space is always the literal \"relative\"; source is [x,y] as given; device_point is [round(x*(w-1)), round(y*(h-1))].",
+        "tap is the nested phone_tap payload (including its verification object).",
+        "Out of range -> AdbError \"relative x and y must be between 0 and 1\".",
+        "Python's round() is banker's rounding (round-half-to-even). Go's math.Round is not."
+      ]
+    },
+    {
+      "name": "phone_tap_image",
+      "title": null,
+      "description": "Tap a point measured on a displayed/resized screenshot.\n\nPass the exact width and height of the image coordinate space used to\nchoose x/y. The tool maps it into current native device pixels.\n",
+      "params": [
+        {
+          "name": "x",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": true,
+          "default": null,
+          "schemaTitle": "X"
+        },
+        {
+          "name": "y",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Y"
+        },
+        {
+          "name": "image_width",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Image Width"
+        },
+        {
+          "name": "image_height",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Image Height"
+        },
+        {
+          "name": "verify",
+          "jsonType": "boolean",
+          "goType": "bool",
+          "required": false,
+          "default": true,
+          "schemaTitle": "Verify"
+        },
+        {
+          "name": "retries",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 2,
+          "schemaTitle": "Retries"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "x": {
+            "title": "X",
+            "type": "integer"
+          },
+          "y": {
+            "title": "Y",
+            "type": "integer"
+          },
+          "image_width": {
+            "title": "Image Width",
+            "type": "integer"
+          },
+          "image_height": {
+            "title": "Image Height",
+            "type": "integer"
+          },
+          "verify": {
+            "default": true,
+            "title": "Verify",
+            "type": "boolean"
+          },
+          "retries": {
+            "default": 2,
+            "title": "Retries",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "image_width",
+          "image_height"
+        ],
+        "title": "phone_tap_imageArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_tap_imageOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "coordinate_space",
+        "source",
+        "device_point",
+        "device_size",
+        "tap"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "coordinate_space is always the literal \"image\"; source is {point:[x,y], size:[image_width,image_height]}; device_size is [w,h].",
+        "device_point = [round(x/max(iw-1,1)*(w-1)), round(y/max(ih-1,1)*(h-1))].",
+        "Errors: non-positive size -> \"image_width and image_height must be positive\"; point outside -> \"image point must be inside image_width x image_height\"."
+      ]
+    },
+    {
+      "name": "phone_swipe",
+      "title": null,
+      "description": "Swipe from (x1,y1) to (x2,y2).",
+      "params": [
+        {
+          "name": "x1",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": true,
+          "default": null,
+          "schemaTitle": "X1"
+        },
+        {
+          "name": "y1",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Y1"
+        },
+        {
+          "name": "x2",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": true,
+          "default": null,
+          "schemaTitle": "X2"
+        },
+        {
+          "name": "y2",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Y2"
+        },
+        {
+          "name": "duration_ms",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 300,
+          "schemaTitle": "Duration Ms"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "x1": {
+            "title": "X1",
+            "type": "integer"
+          },
+          "y1": {
+            "title": "Y1",
+            "type": "integer"
+          },
+          "x2": {
+            "title": "X2",
+            "type": "integer"
+          },
+          "y2": {
+            "title": "Y2",
+            "type": "integer"
+          },
+          "duration_ms": {
+            "default": 300,
+            "title": "Duration Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "x1",
+          "y1",
+          "x2",
+          "y2"
+        ],
+        "title": "phone_swipeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_swipeOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "action",
+        "from",
+        "to",
+        "duration_ms",
+        "serial"
+      ],
+      "resultKeysFallback": [
+        "ok",
+        "action",
+        "serial",
+        "from",
+        "to",
+        "durationMs",
+        "backend"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "adb path -> snake_case duration_ms and no backend key. Streaming path -> runtime.swipe_relative -> camelCase durationMs plus backend=\"plugin-control\", and from/to are in FRAME coordinates (meta.width/height), not device pixels."
+      ]
+    },
+    {
+      "name": "phone_long_press",
+      "title": null,
+      "description": "Long press at coordinates.",
+      "params": [
+        {
+          "name": "x",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": true,
+          "default": null,
+          "schemaTitle": "X"
+        },
+        {
+          "name": "y",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Y"
+        },
+        {
+          "name": "duration_ms",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 1000,
+          "schemaTitle": "Duration Ms"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "x": {
+            "title": "X",
+            "type": "integer"
+          },
+          "y": {
+            "title": "Y",
+            "type": "integer"
+          },
+          "duration_ms": {
+            "default": 1000,
+            "title": "Duration Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "phone_long_pressArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_long_pressOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "action",
+        "from",
+        "to",
+        "duration_ms",
+        "serial"
+      ],
+      "resultKeysFallback": [
+        "ok",
+        "action",
+        "serial",
+        "from",
+        "to",
+        "durationMs",
+        "backend"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "Implemented as swipe(x,y,x,y,duration_ms) -> action is \"swipe\", NOT \"long_press\"."
+      ]
+    },
+    {
+      "name": "phone_key",
+      "title": null,
+      "description": "Press a key: back, home, recents, enter, delete, tab, menu, power, paste.",
+      "params": [
+        {
+          "name": "name",
+          "jsonType": "string",
+          "goType": "string",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Name"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "phone_keyArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_keyOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "action",
+        "key",
+        "code",
+        "serial"
+      ],
+      "resultKeysFallback": [
+        "ok",
+        "action",
+        "key",
+        "serial",
+        "backend"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "key is name.lower().strip(). Supported (adb path): back=4, home=3, recents=187, enter=66, delete=67, tab=61, menu=82, power=26, volume_up=24, volume_down=25, paste=279.",
+        "The streaming path drops \"paste\" and returns {ok,action,key,serial,backend} with NO code.",
+        "Unknown key error: \"Unknown key {name!r}. Supported: back, home, recents, enter, delete, tab, menu, power, volume_up, volume_down, paste\" -- note Python !r quoting (single quotes).",
+        "Note the docstring only advertises 9 of the 11 keys (volume_up/volume_down are undocumented but accepted)."
+      ]
+    },
+    {
+      "name": "phone_type",
+      "title": null,
+      "description": "Type short ASCII text. Do not use for Chinese — use phone_paste instead.",
+      "params": [
+        {
+          "name": "text",
+          "jsonType": "string",
+          "goType": "string",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Text"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "phone_typeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_typeOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "action",
+        "length",
+        "serial"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "Always the adb path, even while streaming.",
+        "Escaping: text.replace(\"%\",\"%25\").replace(\" \",\"%s\") then shlex.quote for the device shell.",
+        "length is the rune count of the ORIGINAL text.",
+        "Empty text -> \"text must not be empty\"."
+      ]
+    },
+    {
+      "name": "phone_paste",
+      "title": null,
+      "description": "Paste text via device clipboard (supports Chinese and emoji).",
+      "params": [
+        {
+          "name": "text",
+          "jsonType": "string",
+          "goType": "string",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Text"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "phone_pasteArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_pasteOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "action",
+        "length",
+        "serial"
+      ],
+      "resultKeysFallback": [
+        "ok",
+        "action",
+        "length",
+        "serial",
+        "backend"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "adb path: `cmd clipboard set-text <quoted>`, sleep 150ms, `input keyevent 279`.",
+        "Streaming path: scrcpy control message type 9 (set clipboard, paste=1) -> adds backend=\"plugin-control\"."
+      ]
+    },
+    {
+      "name": "phone_launch_app",
+      "title": null,
+      "description": "Launch an Android app by package name. Example WeChat: com.tencent.mm.",
+      "params": [
+        {
+          "name": "package",
+          "jsonType": "string",
+          "goType": "string",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Package"
+        },
+        {
+          "name": "activity",
+          "jsonType": "string",
+          "goType": "string",
+          "required": false,
+          "default": "",
+          "schemaTitle": "Activity"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "package": {
+            "title": "Package",
+            "type": "string"
+          },
+          "activity": {
+            "default": "",
+            "title": "Activity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "package"
+        ],
+        "title": "phone_launch_appArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_launch_appOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "action",
+        "package",
+        "activity",
+        "foreground",
+        "serial"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "activity is JSON null when the empty-string default was used (server.py passes activity or None).",
+        "With activity: `am start -n pkg/activity`. Without: `monkey -p pkg -c android.intent.category.LAUNCHER 1`. Then sleeps 1.0s before reading the foreground app.",
+        "action is always the literal \"launch\"."
+      ]
+    },
+    {
+      "name": "phone_current_app",
+      "title": null,
+      "description": "Get the foreground app package and activity.",
+      "params": [],
+      "inputSchema": {
+        "properties": {},
+        "title": "phone_current_appArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_current_appOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "foreground",
+        "serial",
+        "ok"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "foreground is {package,activity,raw}; raw is the trimmed dumpsys line."
+      ]
+    },
+    {
+      "name": "phone_ui_tree",
+      "title": null,
+      "description": "Dump the UI accessibility tree as JSON nodes or raw XML.\nNodes carry state flags (scrollable, enabled=false, focused, checked...)\nonly when noteworthy. If the result has \"degraded\": true, the tree is\nincomplete (WebView/Compose/game) — call phone_screenshot and use vision\ninstead.",
+      "params": [
+        {
+          "name": "compact",
+          "jsonType": "boolean",
+          "goType": "bool",
+          "required": false,
+          "default": true,
+          "schemaTitle": "Compact"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "compact": {
+            "default": true,
+            "title": "Compact",
+            "type": "boolean"
+          }
+        },
+        "title": "phone_ui_treeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_ui_treeOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "nodes",
+        "count",
+        "serial"
+      ],
+      "resultKeysFallback": [
+        "ok",
+        "xml",
+        "serial"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "compact=true -> {ok,nodes,count,serial} plus optional degraded+hint. compact=false -> {ok,xml,serial}.",
+        "Node object key order: index, text, content_desc, resource_id, class, clickable, bounds, center. Then, ONLY when noteworthy: scrollable(true), enabled(false), password(true), focused(true), selected(true), checkable(true)+checked(bool).",
+        "center is [x,y] parsed from bounds \"[x1,y1][x2,y2]\" with integer floor division, or null.",
+        "A node is kept only if it has text, content-desc, clickable, scrollable, \"EditText\" in class, or checkable.",
+        "degraded=true + hint \"UI tree looks incomplete (WebView/Compose/custom-drawn). Fall back to phone_screenshot for vision.\" when any raw XML class contains WebView OR fewer than 3 compact nodes are clickable-or-texted.",
+        "XML parse failure -> {ok:true, xml, serial, parse_error:true, degraded:true, hint:\"UI dump was empty or unparseable. Retry phone_ui_tree or fall back to phone_screenshot for vision.\"}.",
+        "An empty dump is retried once after 300ms.",
+        "Results are cached per PhoneActions instance and invalidated by every tap/swipe/key/type/paste/launch/select_device."
+      ]
+    },
+    {
+      "name": "phone_find_and_tap",
+      "title": null,
+      "description": "Find a UI element by visible text, content-desc, resource-id, or class,\nthen tap it. Provide at least one selector. require_all=True demands every\ngiven selector to hit (use text + resource_id to disambiguate); exact=True\nmatches whole strings instead of substrings; index=N picks the Nth match;\nscroll_to_find=N scrolls down up to N times when the element is off-screen.",
+      "params": [
+        {
+          "name": "text",
+          "jsonType": "string",
+          "goType": "string",
+          "required": false,
+          "default": "",
+          "schemaTitle": "Text"
+        },
+        {
+          "name": "content_desc",
+          "jsonType": "string",
+          "goType": "string",
+          "required": false,
+          "default": "",
+          "schemaTitle": "Content Desc"
+        },
+        {
+          "name": "resource_id",
+          "jsonType": "string",
+          "goType": "string",
+          "required": false,
+          "default": "",
+          "schemaTitle": "Resource Id"
+        },
+        {
+          "name": "class_name",
+          "jsonType": "string",
+          "goType": "string",
+          "required": false,
+          "default": "",
+          "schemaTitle": "Class Name"
+        },
+        {
+          "name": "require_all",
+          "jsonType": "boolean",
+          "goType": "bool",
+          "required": false,
+          "default": false,
+          "schemaTitle": "Require All"
+        },
+        {
+          "name": "exact",
+          "jsonType": "boolean",
+          "goType": "bool",
+          "required": false,
+          "default": false,
+          "schemaTitle": "Exact"
+        },
+        {
+          "name": "index",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 0,
+          "schemaTitle": "Index"
+        },
+        {
+          "name": "scroll_to_find",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 0,
+          "schemaTitle": "Scroll To Find"
+        },
+        {
+          "name": "timeout_s",
+          "jsonType": "number",
+          "goType": "float64",
+          "required": false,
+          "default": 10,
+          "schemaTitle": "Timeout S"
+        },
+        {
+          "name": "verify",
+          "jsonType": "boolean",
+          "goType": "bool",
+          "required": false,
+          "default": true,
+          "schemaTitle": "Verify"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string"
+          },
+          "content_desc": {
+            "default": "",
+            "title": "Content Desc",
+            "type": "string"
+          },
+          "resource_id": {
+            "default": "",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "class_name": {
+            "default": "",
+            "title": "Class Name",
+            "type": "string"
+          },
+          "require_all": {
+            "default": false,
+            "title": "Require All",
+            "type": "boolean"
+          },
+          "exact": {
+            "default": false,
+            "title": "Exact",
+            "type": "boolean"
+          },
+          "index": {
+            "default": 0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "scroll_to_find": {
+            "default": 0,
+            "title": "Scroll To Find",
+            "type": "integer"
+          },
+          "timeout_s": {
+            "default": 10,
+            "title": "Timeout S",
+            "type": "number"
+          },
+          "verify": {
+            "default": true,
+            "title": "Verify",
+            "type": "boolean"
+          }
+        },
+        "title": "phone_find_and_tapArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_find_and_tapOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "matched",
+        "tap"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "matched is the compact ui_tree node; tap is the nested phone_tap payload.",
+        "No selector at all -> \"Provide text, content_desc, resource_id, or class_name\".",
+        "Timeout -> \"Element not found within {timeout_s}s ({criteria}). Last tree had {n} nodes[, after {k} scroll(s)].\" A degraded last tree appends its screenshot-fallback hint. The criteria rendering uses Python repr of a list of strings.",
+        "Matched node without bounds -> \"Matched node has no tappable bounds ({criteria})\".",
+        "Matching: substring by default, whole-string with exact=true; ANY specified attribute hits unless require_all=true; disabled nodes are skipped; index picks the Nth match.",
+        "Polling: 0.4s base interval with 1.5^n backoff capped at 2.0s; a scroll (mid-screen swipe 70%->30% over 350ms + 0.4s settle) re-dumps immediately with no backoff."
+      ]
+    },
+    {
+      "name": "phone_wait_for_text",
+      "title": null,
+      "description": "Wait until the given text appears in the UI tree.",
+      "params": [
+        {
+          "name": "text",
+          "jsonType": "string",
+          "goType": "string",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Text"
+        },
+        {
+          "name": "timeout_s",
+          "jsonType": "number",
+          "goType": "float64",
+          "required": false,
+          "default": 10,
+          "schemaTitle": "Timeout S"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "timeout_s": {
+            "default": 10,
+            "title": "Timeout S",
+            "type": "number"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "phone_wait_for_textArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_wait_for_textOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "found",
+        "serial"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "found is the compact ui_tree node. serial falls back to the client serial when the tree carries none.",
+        "Matches by substring on the text attribute only."
+      ]
+    },
+    {
+      "name": "phone_shell",
+      "title": null,
+      "description": "Execute an adb shell command on the device.",
+      "params": [
+        {
+          "name": "command",
+          "jsonType": "string",
+          "goType": "string",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Command"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "command": {
+            "title": "Command",
+            "type": "string"
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "title": "phone_shellArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_shellOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "output",
+        "serial"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "output is the trimmed stdout of `adb shell <command>`; 60s timeout."
+      ]
+    },
+    {
+      "name": "phone_send_wechat",
+      "title": null,
+      "description": "High-level recipe: open WeChat, find a contact, and send a message.",
+      "params": [
+        {
+          "name": "contact",
+          "jsonType": "string",
+          "goType": "string",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Contact"
+        },
+        {
+          "name": "message",
+          "jsonType": "string",
+          "goType": "string",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Message"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "contact": {
+            "title": "Contact",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "contact",
+          "message"
+        ],
+        "title": "phone_send_wechatArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_send_wechatOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "recipe",
+        "contact",
+        "message",
+        "steps",
+        "verification"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "recipe is always the literal \"wechat_send_message\".",
+        "verification is {width,height,size_bytes} from a final screenshot.",
+        "steps[] entries are heterogeneous: {step,result} for launch_wechat/wait_wechat_ready/open_search/wait_search_input/open_chat/tap_send; {step,contact} for type_contact; {step,length} for type_message; {step,key} for open_chat_fallback/send_fallback; {step,skipped} for the skipped waits.",
+        "Failure message is rewritten: \"{exc}. Steps completed: {n}. Last screenshot: {w}x{h}\"."
+      ]
+    },
+    {
+      "name": "phone_enable_wifi_adb",
+      "title": null,
+      "description": "Enable TCP/IP adb on a USB-connected device (required before Wi-Fi connect).",
+      "params": [
+        {
+          "name": "port",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 5555,
+          "schemaTitle": "Port"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "port": {
+            "default": 5555,
+            "title": "Port",
+            "type": "integer"
+          }
+        },
+        "title": "phone_enable_wifi_adbArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_enable_wifi_adbOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "action",
+        "port",
+        "output",
+        "serial"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "action is always \"enable_tcpip\"; output is the trimmed `adb shell tcpip <port>` stdout."
+      ]
+    },
+    {
+      "name": "phone_get_device_ip",
+      "title": null,
+      "description": "Get the device's Wi-Fi IP address (for wireless adb).",
+      "params": [],
+      "inputSchema": {
+        "properties": {},
+        "title": "phone_get_device_ipArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_get_device_ipOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "ip",
+        "serial"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "Tries `ip route | awk '/wlan/ {print $9; exit}'` then `ip -f inet addr show wlan0 ... | cut -d/ -f1`; both must match ^\\d+\\.\\d+\\.\\d+\\.\\d+$.",
+        "Failure -> \"Could not detect device Wi-Fi IP. Is Wi-Fi connected?\""
+      ]
+    },
+    {
+      "name": "phone_connect_wifi",
+      "title": null,
+      "description": "Connect to a device over Wi-Fi adb. Example host: 192.168.1.100.",
+      "params": [
+        {
+          "name": "host",
+          "jsonType": "string",
+          "goType": "string",
+          "required": true,
+          "default": null,
+          "schemaTitle": "Host"
+        },
+        {
+          "name": "port",
+          "jsonType": "integer",
+          "goType": "int",
+          "required": false,
+          "default": 5555,
+          "schemaTitle": "Port"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "port": {
+            "default": 5555,
+            "title": "Port",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "host"
+        ],
+        "title": "phone_connect_wifiArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_connect_wifiOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "action",
+        "target",
+        "output"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "action is always \"connect_wifi\"; target = host if it contains ':' else f\"{host}:{port}\".",
+        "NOTE: unlike scrcpymac_ui_connect_wifi, host is NOT stripped here.",
+        "Uses self.client (no ensure_device), so it works with no device attached."
+      ]
+    },
+    {
+      "name": "phone_disconnect_wifi",
+      "title": null,
+      "description": "Disconnect a Wi-Fi adb session. Leave host empty to disconnect all.",
+      "params": [
+        {
+          "name": "host",
+          "jsonType": "string",
+          "goType": "string",
+          "required": false,
+          "default": "",
+          "schemaTitle": "Host"
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "host": {
+            "default": "",
+            "title": "Host",
+            "type": "string"
+          }
+        },
+        "title": "phone_disconnect_wifiArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "phone_disconnect_wifiOutput",
+        "type": "object"
+      },
+      "annotations": null,
+      "meta": null,
+      "resultShape": "json-string",
+      "resultKeys": [
+        "ok",
+        "action",
+        "output"
+      ],
+      "errorResultKeys": [
+        "ok",
+        "error"
+      ],
+      "isErrorOnFailure": false,
+      "visibility": [
+        "model"
+      ],
+      "notes": [
+        "action is always \"disconnect_wifi\". Empty host -> `adb disconnect` (all). Non-empty host without ':' gets \":5555\" appended REGARDLESS of any port argument (this tool has no port parameter)."
+      ]
+    }
+  ]
+}

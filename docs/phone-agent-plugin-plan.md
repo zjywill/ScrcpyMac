@@ -1,5 +1,11 @@
 # ScrcpyMac Phone Agent 插件实现计划
 
+> 2026-07-22 架构决策：本文中 App Agent Service、`127.0.0.1:9477`、App 内安装插件、
+> App 与插件共享 session 的 Phase 4/5 设计已废弃。0.7.0 起插件拥有独立
+> scrcpy-server、H.264 和 control session；ScrcpyMac.app 不包含、安装或调用插件。
+> 下文保留为历史实施记录，当前方案以
+> `docs/mcp-apps-scrcpy-integration-plan.md` 为准。
+
 > 版本：0.2  
 > 日期：2026-07-18  
 > 状态：Phase 0–4 implemented (Phase 5 optional, not started)  
@@ -677,7 +683,8 @@ Phase 0 ──► Phase 1 ──► Phase 2 ──► Phase 3 ──► Phase 4 
 | 2 | ✅ 完成 | `download-adb.sh`、install/configure 自动化 |
 | 3 | ✅ 完成 | Wi-Fi adb tools、PRIVACY、logo、wechat recipe |
 | 4 | ✅ 文档就绪 | `MARKETPLACE.md` 提交清单，待人工上架 |
-| 5 | ✅ 完成 | ScrcpyMac App Agent Service + 插件 fast path |
+| 5 | 🗑️ 已移除 | App Agent Service 与插件 fast path 已由独立 runtime 取代 |
+| 6 | 📋 计划中 | MCP Apps 对话内镜像预览 — 见 [mcp-apps-scrcpy-integration-plan.md](./mcp-apps-scrcpy-integration-plan.md) |
 
 代码位置：`plugins/scrcpymac-phone-agent/`
 

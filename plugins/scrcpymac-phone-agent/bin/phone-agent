@@ -4,12 +4,6 @@ set -euo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PHONE_AGENT_ROOT="$PLUGIN_ROOT"
-SERVER_DIR="$PLUGIN_ROOT/server"
-PYTHON_BIN="${PHONE_AGENT_PYTHON:-python3}"
-
-if [[ -z "${PHONE_AGENT_PYTHON:-}" && -x "$PLUGIN_ROOT/.venv/bin/python" ]]; then
-  PYTHON_BIN="$PLUGIN_ROOT/.venv/bin/python"
-fi
 
 select_bundled_adb() {
   local platform=""
@@ -35,10 +29,15 @@ select_bundled_adb() {
   esac
 
   if [[ -n "$platform" && -n "$arch" ]]; then
-    candidate="$PLUGIN_ROOT/bin/$platform/$arch/adb"
-    if [[ -x "$candidate" ]]; then
-      export ADB_PATH="$candidate"
-    fi
+    for candidate in \
+      "$PLUGIN_ROOT/bin/$platform/adb" \
+      "$PLUGIN_ROOT/bin/$platform/$arch/adb"
+    do
+      if [[ -x "$candidate" ]]; then
+        export ADB_PATH="$candidate"
+        return 0
+      fi
+    done
   fi
 }
 
@@ -71,36 +70,52 @@ ensure_adb_for_mcp() {
   fi
 }
 
+# Locate the compiled Go server. Built by
+# scripts/build-go.sh into bin/<platform>/<arch>/phone-agent.
+GO_BINARY=""
+select_go_binary() {
+  local platform="" arch="" candidate=""
+
+  if [[ -n "${PHONE_AGENT_BINARY:-}" ]]; then
+    [[ -x "$PHONE_AGENT_BINARY" ]] || return 1
+    GO_BINARY="$PHONE_AGENT_BINARY"
+    return 0
+  fi
+
+  case "$(uname -s)" in
+    Darwin) platform="darwin" ;;
+    Linux) platform="linux" ;;
+    *) return 1 ;;
+  esac
+  case "$(uname -m)" in
+    arm64|aarch64) arch="arm64" ;;
+    x86_64|amd64) arch="x86_64" ;;
+    *) return 1 ;;
+  esac
+
+  candidate="$PLUGIN_ROOT/bin/$platform/$arch/phone-agent"
+  [[ -x "$candidate" ]] || return 1
+  GO_BINARY="$candidate"
+}
+
 select_bundled_adb
 
-export PYTHONPATH="$SERVER_DIR${PYTHONPATH:+:$PYTHONPATH}"
-
 cmd="${1:-}"
+
 case "$cmd" in
-  mcp)
-    if [[ -z "${PHONE_AGENT_PYTHON:-}" ]]; then
-      "$PLUGIN_ROOT/scripts/ensure-runtime.sh" >&2
-      PYTHON_BIN="$PLUGIN_ROOT/.venv/bin/python"
-    fi
-    ensure_adb_for_mcp
-    exec "$PYTHON_BIN" -m phone_agent.server
-    ;;
-  doctor)
-    if [[ -z "${PHONE_AGENT_PYTHON:-}" ]]; then
-      "$PLUGIN_ROOT/scripts/ensure-runtime.sh" >&2
-      PYTHON_BIN="$PLUGIN_ROOT/.venv/bin/python"
-    fi
-    exec "$PYTHON_BIN" -c "from phone_agent.doctor import run_doctor; import json; print(json.dumps(run_doctor(), indent=2, ensure_ascii=False))"
-    ;;
-  devices)
-    exec "$PYTHON_BIN" -c "from phone_agent.actions import PhoneActions; import json; print(json.dumps(PhoneActions().devices(), indent=2, ensure_ascii=False))"
-    ;;
-  version)
-    "$PYTHON_BIN" -c "from phone_agent import __version__; print(f'scrcpymac-phone-agent {__version__}')"
-    ;;
+  mcp|doctor|devices|version) ;;
   *)
     echo "ScrcpyMac Phone Agent" >&2
     echo "Usage: phone-agent {mcp|doctor|devices|version}" >&2
     exit 1
     ;;
 esac
+
+if ! select_go_binary; then
+  echo "ERROR: no compatible bundled phone-agent Go binary found." >&2
+  echo "       Build it with: $PLUGIN_ROOT/scripts/build-go.sh" >&2
+  exit 1
+fi
+
+[[ "$cmd" == "mcp" ]] && ensure_adb_for_mcp
+exec "$GO_BINARY" "$@"

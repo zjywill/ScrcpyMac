@@ -42,9 +42,6 @@ bundled desktop scrcpy binary, no SDL, no ffmpeg. Only the `scrcpy-server.jar`
 - `ControlMessage.swift` — encoder for scrcpy's client→device protocol
   (touch, scroll, keyboard, and text injection).
 - `AdbBridge.swift` — thin wrapper over the `adb` CLI.
-- `AgentHTTPServer.swift` / `AgentService.swift` — local HTTP service
-  (`127.0.0.1:9477`) that lets the Phone Agent plugin reuse the live scrcpy
-  session for fast screenshots and input injection.
 
 ## Milestones
 
@@ -56,4 +53,14 @@ bundled desktop scrcpy binary, no SDL, no ffmpeg. Only the `scrcpy-server.jar`
 - [x] B4 — mouse + scroll events encoded as scrcpy control messages
 - [x] B5 — keyboard input
 - [x] B6 — stop / reconnect hardening, clipboard paste, and minimal raw PCM audio playback
-- [x] B7 — bundle `adb` + `scrcpy-server.jar` + Phone Agent plugin into the `.app` DMG (`scripts/package-dmg.sh`)
+- [x] B7 — bundle `adb` + `scrcpy-server.jar` into the `.app` DMG (`scripts/package-dmg.sh`)
+
+## Codex plugin boundary
+
+The Phone Agent Codex plugin is a separate runtime. It independently starts its
+own scrcpy-server and sockets and does not call this App, expose an App HTTP
+service, or ship inside the App DMG. The two products may target the same device
+at different times, but they do not share process state or protocol sessions.
+
+See [mcp-apps-scrcpy-integration-plan.md](./mcp-apps-scrcpy-integration-plan.md) for the
+plugin's independent H.264/WebCodecs architecture.

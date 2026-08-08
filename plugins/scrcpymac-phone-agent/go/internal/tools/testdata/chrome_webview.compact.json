@@ -1,0 +1,1259 @@
+{
+  "ok": true,
+  "nodes": [
+    {
+      "index": 0,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.webkit.WebView",
+      "clickable": false,
+      "bounds": "[0,248][1080,2153]",
+      "center": [
+        540,
+        1200
+      ],
+      "scrollable": true,
+      "focused": true
+    },
+    {
+      "index": 1,
+      "text": "World Wide Web",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[8,256][1071,298]",
+      "center": [
+        539,
+        277
+      ]
+    },
+    {
+      "index": 2,
+      "text": "The WorldWideWeb (W3) is a wide-area",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[8,320][346,342]",
+      "center": [
+        177,
+        331
+      ]
+    },
+    {
+      "index": 3,
+      "text": "",
+      "content_desc": "hypermedia",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[344,320][452,342]",
+      "center": [
+        398,
+        331
+      ]
+    },
+    {
+      "index": 4,
+      "text": "hypermedia",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[344,320][452,342]",
+      "center": [
+        398,
+        331
+      ]
+    },
+    {
+      "index": 5,
+      "text": "information retrieval initiative aiming to give universal access to a large universe of documents.",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[8,320][1064,363]",
+      "center": [
+        536,
+        341
+      ]
+    },
+    {
+      "index": 6,
+      "text": "Everything there is online about W3 is linked directly or indirectly to this document, including an",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[8,380][832,402]",
+      "center": [
+        420,
+        391
+      ]
+    },
+    {
+      "index": 7,
+      "text": "",
+      "content_desc": "executive summary",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[830,380][997,402]",
+      "center": [
+        913,
+        391
+      ]
+    },
+    {
+      "index": 8,
+      "text": "executive summary",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[830,380][997,402]",
+      "center": [
+        913,
+        391
+      ]
+    },
+    {
+      "index": 9,
+      "text": "of the project,",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[8,380][1050,423]",
+      "center": [
+        529,
+        401
+      ]
+    },
+    {
+      "index": 10,
+      "text": "",
+      "content_desc": "Mailing lists",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[76,401][179,423]",
+      "center": [
+        127,
+        412
+      ]
+    },
+    {
+      "index": 11,
+      "text": "Mailing lists",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[76,401][179,423]",
+      "center": [
+        127,
+        412
+      ]
+    },
+    {
+      "index": 12,
+      "text": ",",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[178,401][192,423]",
+      "center": [
+        185,
+        412
+      ]
+    },
+    {
+      "index": 13,
+      "text": "",
+      "content_desc": "Policy",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[191,401][243,423]",
+      "center": [
+        217,
+        412
+      ]
+    },
+    {
+      "index": 14,
+      "text": "Policy",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[191,401][243,423]",
+      "center": [
+        217,
+        412
+      ]
+    },
+    {
+      "index": 15,
+      "text": ", November's",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[242,401][361,423]",
+      "center": [
+        301,
+        412
+      ]
+    },
+    {
+      "index": 16,
+      "text": "",
+      "content_desc": "W3 news",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[360,401][438,423]",
+      "center": [
+        399,
+        412
+      ]
+    },
+    {
+      "index": 17,
+      "text": "W3 news",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[360,401][438,423]",
+      "center": [
+        399,
+        412
+      ]
+    },
+    {
+      "index": 18,
+      "text": ",",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[437,401][451,423]",
+      "center": [
+        444,
+        412
+      ]
+    },
+    {
+      "index": 19,
+      "text": "",
+      "content_desc": "Frequently Asked Questions",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[450,401][687,423]",
+      "center": [
+        568,
+        412
+      ]
+    },
+    {
+      "index": 20,
+      "text": "Frequently Asked Questions",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[450,401][687,423]",
+      "center": [
+        568,
+        412
+      ]
+    },
+    {
+      "index": 21,
+      "text": ".",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[686,401][696,423]",
+      "center": [
+        691,
+        412
+      ]
+    },
+    {
+      "index": 22,
+      "text": "What's out there?",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": false,
+      "bounds": "[8,439][1071,461]",
+      "center": [
+        539,
+        450
+      ]
+    },
+    {
+      "index": 23,
+      "text": "",
+      "content_desc": "What's out there?",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[8,439][157,461]",
+      "center": [
+        82,
+        450
+      ]
+    },
+    {
+      "index": 24,
+      "text": "What's out there?",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[8,439][157,461]",
+      "center": [
+        82,
+        450
+      ]
+    },
+    {
+      "index": 25,
+      "text": "Pointers to the world's online information,",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[52,460][411,482]",
+      "center": [
+        231,
+        471
+      ]
+    },
+    {
+      "index": 26,
+      "text": "",
+      "content_desc": "subjects",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[409,460][482,482]",
+      "center": [
+        445,
+        471
+      ]
+    },
+    {
+      "index": 27,
+      "text": "subjects",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[409,460][482,482]",
+      "center": [
+        445,
+        471
+      ]
+    },
+    {
+      "index": 28,
+      "text": ",",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[481,460][497,482]",
+      "center": [
+        489,
+        471
+      ]
+    },
+    {
+      "index": 29,
+      "text": "",
+      "content_desc": "W3 servers",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[495,460][590,482]",
+      "center": [
+        542,
+        471
+      ]
+    },
+    {
+      "index": 30,
+      "text": "W3 servers",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[495,460][590,482]",
+      "center": [
+        542,
+        471
+      ]
+    },
+    {
+      "index": 31,
+      "text": ", etc.",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[589,460][629,482]",
+      "center": [
+        609,
+        471
+      ]
+    },
+    {
+      "index": 32,
+      "text": "Help",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": false,
+      "bounds": "[8,481][1071,503]",
+      "center": [
+        539,
+        492
+      ]
+    },
+    {
+      "index": 33,
+      "text": "",
+      "content_desc": "Help",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[8,481][49,503]",
+      "center": [
+        28,
+        492
+      ]
+    },
+    {
+      "index": 34,
+      "text": "Help",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[8,481][49,503]",
+      "center": [
+        28,
+        492
+      ]
+    },
+    {
+      "index": 35,
+      "text": "on the browser you are using",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": false,
+      "bounds": "[52,502][1071,524]",
+      "center": [
+        561,
+        513
+      ]
+    },
+    {
+      "index": 36,
+      "text": "Software Products",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": false,
+      "bounds": "[8,523][1071,545]",
+      "center": [
+        539,
+        534
+      ]
+    },
+    {
+      "index": 37,
+      "text": "",
+      "content_desc": "Software Products",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[8,523][163,545]",
+      "center": [
+        85,
+        534
+      ]
+    },
+    {
+      "index": 38,
+      "text": "Software Products",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[8,523][163,545]",
+      "center": [
+        85,
+        534
+      ]
+    },
+    {
+      "index": 39,
+      "text": "A list of W3 project components and their current state. (e.g.",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[52,544][563,566]",
+      "center": [
+        307,
+        555
+      ]
+    },
+    {
+      "index": 40,
+      "text": "",
+      "content_desc": "Line Mode",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[562,544][651,566]",
+      "center": [
+        606,
+        555
+      ]
+    },
+    {
+      "index": 41,
+      "text": "Line Mode",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[562,544][651,566]",
+      "center": [
+        606,
+        555
+      ]
+    },
+    {
+      "index": 42,
+      "text": ",X11",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[650,544][696,566]",
+      "center": [
+        673,
+        555
+      ]
+    },
+    {
+      "index": 43,
+      "text": "",
+      "content_desc": "Viola",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[695,544][739,566]",
+      "center": [
+        717,
+        555
+      ]
+    },
+    {
+      "index": 44,
+      "text": "Viola",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[695,544][739,566]",
+      "center": [
+        717,
+        555
+      ]
+    },
+    {
+      "index": 45,
+      "text": ",",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[738,544][753,566]",
+      "center": [
+        745,
+        555
+      ]
+    },
+    {
+      "index": 46,
+      "text": "",
+      "content_desc": "NeXTStep",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[752,544][834,566]",
+      "center": [
+        793,
+        555
+      ]
+    },
+    {
+      "index": 47,
+      "text": "NeXTStep",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[752,544][834,566]",
+      "center": [
+        793,
+        555
+      ]
+    },
+    {
+      "index": 48,
+      "text": ",",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[833,544][848,566]",
+      "center": [
+        840,
+        555
+      ]
+    },
+    {
+      "index": 49,
+      "text": "",
+      "content_desc": "Servers",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[847,544][911,566]",
+      "center": [
+        879,
+        555
+      ]
+    },
+    {
+      "index": 50,
+      "text": "Servers",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[847,544][911,566]",
+      "center": [
+        879,
+        555
+      ]
+    },
+    {
+      "index": 51,
+      "text": ",",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[910,544][924,566]",
+      "center": [
+        917,
+        555
+      ]
+    },
+    {
+      "index": 52,
+      "text": "",
+      "content_desc": "Tools",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[923,544][968,566]",
+      "center": [
+        945,
+        555
+      ]
+    },
+    {
+      "index": 53,
+      "text": "Tools",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[923,544][968,566]",
+      "center": [
+        945,
+        555
+      ]
+    },
+    {
+      "index": 54,
+      "text": ",",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[967,544][978,566]",
+      "center": [
+        972,
+        555
+      ]
+    },
+    {
+      "index": 55,
+      "text": "",
+      "content_desc": "Mail robot",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[977,544][1070,566]",
+      "center": [
+        1023,
+        555
+      ]
+    },
+    {
+      "index": 56,
+      "text": "Mail robot",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[977,544][1070,566]",
+      "center": [
+        1023,
+        555
+      ]
+    },
+    {
+      "index": 57,
+      "text": ",",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[52,565][57,587]",
+      "center": [
+        54,
+        576
+      ]
+    },
+    {
+      "index": 58,
+      "text": "",
+      "content_desc": "Library",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[57,565][125,587]",
+      "center": [
+        91,
+        576
+      ]
+    },
+    {
+      "index": 59,
+      "text": "Library",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[57,565][125,587]",
+      "center": [
+        91,
+        576
+      ]
+    },
+    {
+      "index": 60,
+      "text": ")",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[124,565][136,587]",
+      "center": [
+        130,
+        576
+      ]
+    },
+    {
+      "index": 61,
+      "text": "Technical",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": false,
+      "bounds": "[8,586][1071,608]",
+      "center": [
+        539,
+        597
+      ]
+    },
+    {
+      "index": 62,
+      "text": "",
+      "content_desc": "Technical",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[8,586][90,608]",
+      "center": [
+        49,
+        597
+      ]
+    },
+    {
+      "index": 63,
+      "text": "Technical",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[8,586][90,608]",
+      "center": [
+        49,
+        597
+      ]
+    },
+    {
+      "index": 64,
+      "text": "Details of protocols, formats, program internals etc",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": false,
+      "bounds": "[52,607][1071,629]",
+      "center": [
+        561,
+        618
+      ]
+    },
+    {
+      "index": 65,
+      "text": "Bibliography",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": false,
+      "bounds": "[8,628][1071,650]",
+      "center": [
+        539,
+        639
+      ]
+    },
+    {
+      "index": 66,
+      "text": "",
+      "content_desc": "Bibliography",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[8,628][117,650]",
+      "center": [
+        62,
+        639
+      ]
+    },
+    {
+      "index": 67,
+      "text": "Bibliography",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[8,628][117,650]",
+      "center": [
+        62,
+        639
+      ]
+    },
+    {
+      "index": 68,
+      "text": "Paper documentation on W3 and references.",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": false,
+      "bounds": "[52,649][1071,671]",
+      "center": [
+        561,
+        660
+      ]
+    },
+    {
+      "index": 69,
+      "text": "People",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": false,
+      "bounds": "[8,670][1071,692]",
+      "center": [
+        539,
+        681
+      ]
+    },
+    {
+      "index": 70,
+      "text": "",
+      "content_desc": "People",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[8,670][65,692]",
+      "center": [
+        36,
+        681
+      ]
+    },
+    {
+      "index": 71,
+      "text": "People",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[8,670][65,692]",
+      "center": [
+        36,
+        681
+      ]
+    },
+    {
+      "index": 72,
+      "text": "A list of some people involved in the project.",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": false,
+      "bounds": "[52,691][1071,713]",
+      "center": [
+        561,
+        702
+      ]
+    },
+    {
+      "index": 73,
+      "text": "History",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": false,
+      "bounds": "[8,711][1071,734]",
+      "center": [
+        539,
+        722
+      ]
+    },
+    {
+      "index": 74,
+      "text": "",
+      "content_desc": "History",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[8,711][71,734]",
+      "center": [
+        39,
+        722
+      ]
+    },
+    {
+      "index": 75,
+      "text": "History",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[8,711][71,734]",
+      "center": [
+        39,
+        722
+      ]
+    },
+    {
+      "index": 76,
+      "text": "A summary of the history of the project.",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": false,
+      "bounds": "[52,732][1071,754]",
+      "center": [
+        561,
+        743
+      ]
+    },
+    {
+      "index": 77,
+      "text": "How can I help ?",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": false,
+      "bounds": "[8,753][1071,775]",
+      "center": [
+        539,
+        764
+      ]
+    },
+    {
+      "index": 78,
+      "text": "",
+      "content_desc": "How can I help",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[8,753][135,775]",
+      "center": [
+        71,
+        764
+      ]
+    },
+    {
+      "index": 79,
+      "text": "How can I help",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[8,753][135,775]",
+      "center": [
+        71,
+        764
+      ]
+    },
+    {
+      "index": 80,
+      "text": "?",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[134,753][148,775]",
+      "center": [
+        141,
+        764
+      ]
+    },
+    {
+      "index": 81,
+      "text": "If you would like to support the web..",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": false,
+      "bounds": "[52,774][1071,796]",
+      "center": [
+        561,
+        785
+      ]
+    },
+    {
+      "index": 82,
+      "text": "Getting code",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": false,
+      "bounds": "[8,795][1071,817]",
+      "center": [
+        539,
+        806
+      ]
+    },
+    {
+      "index": 83,
+      "text": "",
+      "content_desc": "Getting code",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[8,795][113,817]",
+      "center": [
+        60,
+        806
+      ]
+    },
+    {
+      "index": 84,
+      "text": "Getting code",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[8,795][113,817]",
+      "center": [
+        60,
+        806
+      ]
+    },
+    {
+      "index": 85,
+      "text": "Getting the code by",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[52,816][214,838]",
+      "center": [
+        133,
+        827
+      ]
+    },
+    {
+      "index": 86,
+      "text": "",
+      "content_desc": "anonymous FTP",
+      "resource_id": "",
+      "class": "android.view.View",
+      "clickable": true,
+      "bounds": "[213,816][353,838]",
+      "center": [
+        283,
+        827
+      ]
+    },
+    {
+      "index": 87,
+      "text": "anonymous FTP",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[213,816][353,838]",
+      "center": [
+        283,
+        827
+      ]
+    },
+    {
+      "index": 88,
+      "text": ", etc.",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[352,816][396,838]",
+      "center": [
+        374,
+        827
+      ]
+    },
+    {
+      "index": 89,
+      "text": "",
+      "content_desc": "打开主页",
+      "resource_id": "com.android.chrome:id/home_button",
+      "class": "android.widget.ImageButton",
+      "clickable": true,
+      "bounds": "[0,80][144,248]",
+      "center": [
+        72,
+        164
+      ]
+    },
+    {
+      "index": 90,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "com.android.chrome:id/location_bar_status",
+      "class": "android.widget.LinearLayout",
+      "clickable": true,
+      "bounds": "[144,80][240,248]",
+      "center": [
+        192,
+        164
+      ]
+    },
+    {
+      "index": 91,
+      "text": "",
+      "content_desc": "连接是安全的",
+      "resource_id": "com.android.chrome:id/location_bar_status_icon",
+      "class": "android.widget.ImageView",
+      "clickable": false,
+      "bounds": "[156,128][228,200]",
+      "center": [
+        192,
+        164
+      ]
+    },
+    {
+      "index": 92,
+      "text": "info.cern.ch/hypertext/WWW/TheProject.html",
+      "content_desc": "",
+      "resource_id": "com.android.chrome:id/url_bar",
+      "class": "android.widget.EditText",
+      "clickable": true,
+      "bounds": "[240,80][636,248]",
+      "center": [
+        438,
+        164
+      ]
+    },
+    {
+      "index": 93,
+      "text": "",
+      "content_desc": "打开新的标签页",
+      "resource_id": "com.android.chrome:id/optional_toolbar_button",
+      "class": "android.widget.ImageButton",
+      "clickable": true,
+      "bounds": "[636,80][792,248]",
+      "center": [
+        714,
+        164
+      ]
+    },
+    {
+      "index": 94,
+      "text": "",
+      "content_desc": "查看 9 个标签页",
+      "resource_id": "com.android.chrome:id/tab_switcher_button",
+      "class": "android.widget.ImageButton",
+      "clickable": true,
+      "bounds": "[792,80][936,248]",
+      "center": [
+        864,
+        164
+      ]
+    },
+    {
+      "index": 95,
+      "text": "",
+      "content_desc": "自定义及控制 Google Chrome",
+      "resource_id": "com.android.chrome:id/menu_button",
+      "class": "android.widget.ImageButton",
+      "clickable": true,
+      "bounds": "[936,80][1080,248]",
+      "center": [
+        1008,
+        164
+      ]
+    }
+  ],
+  "count": 96,
+  "serial": "2f019965",
+  "degraded": true,
+  "hint": "UI tree looks incomplete (WebView/Compose/custom-drawn). Fall back to phone_screenshot for vision."
+}

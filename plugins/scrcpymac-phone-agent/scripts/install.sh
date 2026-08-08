@@ -6,21 +6,12 @@ PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 echo "==> ScrcpyMac Phone Agent install"
 echo "Plugin root: $PLUGIN_ROOT"
 
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "ERROR: python3 is required (3.10+)" >&2
-  exit 1
-fi
-
-if [[ "$(python3 -c 'import sys; print(sys.version_info >= (3, 10))')" != "True" ]]; then
-  echo "ERROR: Python 3.10+ required" >&2
-  exit 1
-fi
-
 chmod +x "$PLUGIN_ROOT/bin/phone-agent" "$PLUGIN_ROOT/mcp-server.sh"
 chmod +x "$PLUGIN_ROOT/scripts/"*.sh 2>/dev/null || true
+chmod +x "$PLUGIN_ROOT"/bin/darwin/*/phone-agent 2>/dev/null || true
 
-echo "==> Installing server dependencies"
-"$PLUGIN_ROOT/scripts/ensure-runtime.sh"
+echo "==> Verifying bundled Go runtime"
+"$PLUGIN_ROOT/bin/phone-agent" version
 
 UNAME="$(uname -s)"
 if [[ "$UNAME" == "Darwin" ]]; then

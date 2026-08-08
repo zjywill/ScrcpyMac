@@ -1,0 +1,336 @@
+{
+  "ok": true,
+  "nodes": [
+    {
+      "index": 0,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "com.android.settings:id/recycler_view",
+      "class": "androidx.recyclerview.widget.RecyclerView",
+      "clickable": false,
+      "bounds": "[0,302][1080,2153]",
+      "center": [
+        540,
+        1227
+      ],
+      "scrollable": true,
+      "focused": true
+    },
+    {
+      "index": 1,
+      "text": "屏幕",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[0,422][1080,487]",
+      "center": [
+        540,
+        454
+      ]
+    },
+    {
+      "index": 2,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.LinearLayout",
+      "clickable": true,
+      "bounds": "[0,487][1080,739]",
+      "center": [
+        540,
+        613
+      ]
+    },
+    {
+      "index": 3,
+      "text": "自动调节亮度",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[60,523][348,588]",
+      "center": [
+        204,
+        555
+      ]
+    },
+    {
+      "index": 4,
+      "text": "根据环境光线情况优化亮度。开启此功能后，您仍然可以暂时调整亮度。",
+      "content_desc": "",
+      "resource_id": "android:id/summary",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[60,591][897,700]",
+      "center": [
+        478,
+        645
+      ]
+    },
+    {
+      "index": 5,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "android:id/switch_widget",
+      "class": "android.widget.Switch",
+      "clickable": false,
+      "bounds": "[937,556][1039,613]",
+      "center": [
+        988,
+        584
+      ],
+      "checkable": true,
+      "checked": true
+    },
+    {
+      "index": 6,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.LinearLayout",
+      "clickable": true,
+      "bounds": "[0,955][1080,1151]",
+      "center": [
+        540,
+        1053
+      ]
+    },
+    {
+      "index": 7,
+      "text": "休眠",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[60,991][156,1056]",
+      "center": [
+        108,
+        1023
+      ]
+    },
+    {
+      "index": 8,
+      "text": "闲置 30 秒后",
+      "content_desc": "",
+      "resource_id": "android:id/summary",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[60,1059][280,1112]",
+      "center": [
+        170,
+        1085
+      ]
+    },
+    {
+      "index": 9,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.LinearLayout",
+      "clickable": true,
+      "bounds": "[0,1151][1080,1347]",
+      "center": [
+        540,
+        1249
+      ]
+    },
+    {
+      "index": 10,
+      "text": "专业设置",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[60,1187][252,1252]",
+      "center": [
+        156,
+        1219
+      ]
+    },
+    {
+      "index": 11,
+      "text": "颜色模式、凹形区域设置",
+      "content_desc": "",
+      "resource_id": "android:id/summary",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[60,1255][489,1308]",
+      "center": [
+        274,
+        1281
+      ]
+    },
+    {
+      "index": 12,
+      "text": "场景模式",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[0,1467][1080,1532]",
+      "center": [
+        540,
+        1499
+      ]
+    },
+    {
+      "index": 13,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.LinearLayout",
+      "clickable": true,
+      "bounds": "[0,1532][1080,1724]",
+      "center": [
+        540,
+        1628
+      ]
+    },
+    {
+      "index": 14,
+      "text": "护眼模式",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[60,1595][252,1660]",
+      "center": [
+        156,
+        1627
+      ]
+    },
+    {
+      "index": 15,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.LinearLayout",
+      "clickable": true,
+      "bounds": "[0,1724][1080,1916]",
+      "center": [
+        540,
+        1820
+      ]
+    },
+    {
+      "index": 16,
+      "text": "阅读模式",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[60,1787][252,1852]",
+      "center": [
+        156,
+        1819
+      ]
+    },
+    {
+      "index": 17,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.LinearLayout",
+      "clickable": true,
+      "bounds": "[0,1916][1080,2108]",
+      "center": [
+        540,
+        2012
+      ]
+    },
+    {
+      "index": 18,
+      "text": "暗色模式",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[60,1979][252,2044]",
+      "center": [
+        156,
+        2011
+      ]
+    },
+    {
+      "index": 19,
+      "text": "",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.LinearLayout",
+      "clickable": true,
+      "bounds": "[0,2108][1080,2153]",
+      "center": [
+        540,
+        2130
+      ]
+    },
+    {
+      "index": 20,
+      "text": "鲜明视效",
+      "content_desc": "",
+      "resource_id": "android:id/title",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[60,2144][252,2153]",
+      "center": [
+        156,
+        2148
+      ]
+    },
+    {
+      "index": 21,
+      "text": "关闭",
+      "content_desc": "",
+      "resource_id": "android:id/summary",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[0,0][0,0]",
+      "center": [
+        0,
+        0
+      ]
+    },
+    {
+      "index": 22,
+      "text": "",
+      "content_desc": "转到上一层级",
+      "resource_id": "",
+      "class": "android.widget.ImageButton",
+      "clickable": true,
+      "bounds": "[15,140][141,266]",
+      "center": [
+        78,
+        203
+      ]
+    },
+    {
+      "index": 23,
+      "text": "显示",
+      "content_desc": "",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": false,
+      "bounds": "[141,166][249,239]",
+      "center": [
+        195,
+        202
+      ]
+    },
+    {
+      "index": 24,
+      "text": "",
+      "content_desc": "搜索设置",
+      "resource_id": "",
+      "class": "android.widget.TextView",
+      "clickable": true,
+      "bounds": "[921,140][1056,266]",
+      "center": [
+        988,
+        203
+      ]
+    }
+  ],
+  "count": 25,
+  "serial": "2f019965"
+}

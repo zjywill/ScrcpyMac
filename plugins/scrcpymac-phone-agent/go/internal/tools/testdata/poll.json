@@ -1,0 +1,481 @@
+[
+  {
+    "name": "hit-first-dump",
+    "fixture": "settings_home.xml",
+    "text": [
+      "帐号"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "timeout_s": 10.0,
+    "poll_interval_s": 0.4,
+    "scroll_to_find": 0,
+    "screen_known": true,
+    "dumps": [
+      false
+    ],
+    "sleeps": [],
+    "scrolls": 0,
+    "found": "{\n  \"index\": 8,\n  \"text\": \"帐号\",\n  \"content_desc\": \"\",\n  \"resource_id\": \"android:id/title\",\n  \"class\": \"android.widget.TextView\",\n  \"clickable\": false,\n  \"bounds\": \"[265,543][361,608]\",\n  \"center\": [\n    313,\n    575\n  ]\n}",
+    "error": null
+  },
+  {
+    "name": "hit-second-match",
+    "fixture": "settings_home.xml",
+    "text": [
+      "帐号"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 1,
+    "timeout_s": 10.0,
+    "poll_interval_s": 0.4,
+    "scroll_to_find": 0,
+    "screen_known": true,
+    "dumps": [
+      false
+    ],
+    "sleeps": [],
+    "scrolls": 0,
+    "found": "{\n  \"index\": 9,\n  \"text\": \"一加帐号、其他帐号\",\n  \"content_desc\": \"\",\n  \"resource_id\": \"android:id/summary\",\n  \"class\": \"android.widget.TextView\",\n  \"clickable\": false,\n  \"bounds\": \"[265,614][616,667]\",\n  \"center\": [\n    440,\n    640\n  ]\n}",
+    "error": null
+  },
+  {
+    "name": "miss-default-backoff",
+    "fixture": "settings_home.xml",
+    "text": [
+      "nope"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "timeout_s": 10.0,
+    "poll_interval_s": 0.4,
+    "scroll_to_find": 0,
+    "screen_known": true,
+    "dumps": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "sleeps": [
+      0.4,
+      0.6,
+      0.9,
+      1.35,
+      2.0,
+      2.0,
+      2.0,
+      2.0
+    ],
+    "scrolls": 0,
+    "found": null,
+    "error": "Element not found within 10.0s (text=['nope']). Last tree had 28 nodes."
+  },
+  {
+    "name": "miss-short-timeout",
+    "fixture": "settings_home.xml",
+    "text": [
+      "nope"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "timeout_s": 1.0,
+    "poll_interval_s": 0.4,
+    "scroll_to_find": 0,
+    "screen_known": true,
+    "dumps": [
+      false,
+      true
+    ],
+    "sleeps": [
+      0.4,
+      0.6
+    ],
+    "scrolls": 0,
+    "found": null,
+    "error": "Element not found within 1.0s (text=['nope']). Last tree had 28 nodes."
+  },
+  {
+    "name": "miss-zero-timeout",
+    "fixture": "settings_home.xml",
+    "text": [
+      "nope"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "timeout_s": 0.0,
+    "poll_interval_s": 0.4,
+    "scroll_to_find": 0,
+    "screen_known": true,
+    "dumps": [],
+    "sleeps": [],
+    "scrolls": 0,
+    "found": null,
+    "error": "Element not found within 0.0s (text=['nope']). Last tree had 0 nodes."
+  },
+  {
+    "name": "miss-negative-timeout",
+    "fixture": "settings_home.xml",
+    "text": [
+      "nope"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "timeout_s": -1.0,
+    "poll_interval_s": 0.4,
+    "scroll_to_find": 0,
+    "screen_known": true,
+    "dumps": [],
+    "sleeps": [],
+    "scrolls": 0,
+    "found": null,
+    "error": "Element not found within -1.0s (text=['nope']). Last tree had 0 nodes."
+  },
+  {
+    "name": "miss-long-timeout-cap",
+    "fixture": "settings_home.xml",
+    "text": [
+      "nope"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "timeout_s": 30.0,
+    "poll_interval_s": 0.4,
+    "scroll_to_find": 0,
+    "screen_known": true,
+    "dumps": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "sleeps": [
+      0.4,
+      0.6,
+      0.9,
+      1.35,
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0
+    ],
+    "scrolls": 0,
+    "found": null,
+    "error": "Element not found within 30.0s (text=['nope']). Last tree had 28 nodes."
+  },
+  {
+    "name": "miss-with-scrolls",
+    "fixture": "settings_home.xml",
+    "text": [
+      "nope"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "timeout_s": 10.0,
+    "poll_interval_s": 0.4,
+    "scroll_to_find": 3,
+    "screen_known": true,
+    "dumps": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "sleeps": [
+      0.4,
+      0.4,
+      0.4,
+      1.35,
+      2.0,
+      2.0,
+      2.0,
+      2.0
+    ],
+    "scrolls": 3,
+    "found": null,
+    "error": "Element not found within 10.0s (text=['nope']). Last tree had 28 nodes, after 3 scroll(s)."
+  },
+  {
+    "name": "miss-degraded-webview",
+    "fixture": "chrome_webview.xml",
+    "text": [
+      "nope"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "timeout_s": 2.0,
+    "poll_interval_s": 0.4,
+    "scroll_to_find": 1,
+    "screen_known": true,
+    "dumps": [
+      false,
+      true,
+      true,
+      true
+    ],
+    "sleeps": [
+      0.4,
+      0.6,
+      0.9,
+      1.35
+    ],
+    "scrolls": 1,
+    "found": null,
+    "error": "Element not found within 2.0s (text=['nope']). Last tree had 96 nodes, after 1 scroll(s). UI tree looks incomplete (WebView/Compose/custom-drawn). Fall back to phone_screenshot for vision."
+  },
+  {
+    "name": "miss-index-out-of-range",
+    "fixture": "settings_home.xml",
+    "text": [
+      "帐号"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 7,
+    "timeout_s": 2.0,
+    "poll_interval_s": 0.4,
+    "scroll_to_find": 0,
+    "screen_known": true,
+    "dumps": [
+      false,
+      true,
+      true,
+      true
+    ],
+    "sleeps": [
+      0.4,
+      0.6,
+      0.9,
+      1.35
+    ],
+    "scrolls": 0,
+    "found": null,
+    "error": "Element not found within 2.0s (text=['帐号']). Last tree had 28 nodes."
+  },
+  {
+    "name": "miss-degraded-tree",
+    "fixture": "empty.xml",
+    "text": [
+      "nope"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "timeout_s": 2.0,
+    "poll_interval_s": 0.4,
+    "scroll_to_find": 0,
+    "screen_known": true,
+    "dumps": [
+      false,
+      true,
+      true
+    ],
+    "sleeps": [
+      0.3,
+      0.4,
+      0.3,
+      0.6,
+      0.3,
+      0.9
+    ],
+    "scrolls": 0,
+    "found": null,
+    "error": "Element not found within 2.0s (text=['nope']). Last tree had 0 nodes. UI dump was empty or unparseable. Retry phone_ui_tree or fall back to phone_screenshot for vision."
+  },
+  {
+    "name": "miss-cjk-criteria",
+    "fixture": "flags.xml",
+    "text": [
+      "搜索",
+      "Search"
+    ],
+    "content_desc": [
+      "搜索"
+    ],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "timeout_s": 3.0,
+    "poll_interval_s": 0.4,
+    "scroll_to_find": 2,
+    "screen_known": true,
+    "dumps": [
+      false
+    ],
+    "sleeps": [],
+    "scrolls": 0,
+    "found": "{\n  \"index\": 6,\n  \"text\": \"搜索\",\n  \"content_desc\": \"搜索 Search\",\n  \"resource_id\": \"com.tencent.mm:id/menu_search\",\n  \"class\": \"android.widget.TextView\",\n  \"clickable\": true,\n  \"bounds\": \"[0,700][1080,800]\",\n  \"center\": [\n    540,\n    750\n  ],\n  \"selected\": true\n}",
+    "error": null
+  },
+  {
+    "name": "miss-require-all",
+    "fixture": "flags.xml",
+    "text": [
+      "Wi-Fi"
+    ],
+    "content_desc": [],
+    "resource_id": [
+      "nope"
+    ],
+    "class_name": [],
+    "require_all": true,
+    "exact": true,
+    "index": 0,
+    "timeout_s": 1.0,
+    "poll_interval_s": 0.5,
+    "scroll_to_find": 0,
+    "screen_known": true,
+    "dumps": [
+      false,
+      true
+    ],
+    "sleeps": [
+      0.5,
+      0.75
+    ],
+    "scrolls": 0,
+    "found": null,
+    "error": "Element not found within 1.0s (text=['Wi-Fi'], resource_id=['nope'], require_all=True, exact=True). Last tree had 14 nodes."
+  },
+  {
+    "name": "miss-scroll-without-screen-size",
+    "fixture": "settings_home.xml",
+    "text": [
+      "nope"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "timeout_s": 2.0,
+    "poll_interval_s": 0.4,
+    "scroll_to_find": 2,
+    "screen_known": false,
+    "dumps": [
+      false,
+      true,
+      true,
+      true
+    ],
+    "sleeps": [
+      0.9,
+      1.35
+    ],
+    "scrolls": 0,
+    "found": null,
+    "error": "Element not found within 2.0s (text=['nope']). Last tree had 28 nodes, after 2 scroll(s)."
+  },
+  {
+    "name": "miss-scroll-without-screen-size-long",
+    "fixture": "settings_home.xml",
+    "text": [
+      "nope"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "timeout_s": 6.0,
+    "poll_interval_s": 0.4,
+    "scroll_to_find": 3,
+    "screen_known": false,
+    "dumps": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "sleeps": [
+      1.35,
+      2.0,
+      2.0,
+      2.0
+    ],
+    "scrolls": 0,
+    "found": null,
+    "error": "Element not found within 6.0s (text=['nope']). Last tree had 28 nodes, after 3 scroll(s)."
+  }
+]

@@ -6,6 +6,8 @@ set -euo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLATFORM="${1:-$(uname -s | tr '[:upper:]' '[:lower:]')}"
+NOTICE_DEST="$PLUGIN_ROOT/licenses/android-platform-tools-NOTICE.txt"
+PROPERTIES_DEST="$PLUGIN_ROOT/licenses/android-platform-tools-source.properties"
 
 case "$PLATFORM" in
   darwin|macos|mac)
@@ -22,7 +24,7 @@ case "$PLATFORM" in
   ;;
 esac
 
-if [[ -x "$DEST" ]]; then
+if [[ -x "$DEST" && -f "$NOTICE_DEST" && -f "$PROPERTIES_DEST" ]]; then
   echo "adb already present at $DEST"
   "$DEST" version | head -1
   exit 0
@@ -40,13 +42,9 @@ mkdir -p "$(dirname "$DEST")"
 cp "$TMP/platform-tools/adb" "$DEST"
 chmod +x "$DEST"
 
-# Mirror universal mac adb to arch-specific paths for launcher compatibility.
-if [[ "$PLATFORM" == "darwin" || "$PLATFORM" == "macos" || "$PLATFORM" == "mac" ]]; then
-  mkdir -p "$PLUGIN_ROOT/bin/darwin/arm64" "$PLUGIN_ROOT/bin/darwin/x86_64"
-  cp "$DEST" "$PLUGIN_ROOT/bin/darwin/arm64/adb"
-  cp "$DEST" "$PLUGIN_ROOT/bin/darwin/x86_64/adb"
-  chmod +x "$PLUGIN_ROOT/bin/darwin/arm64/adb" "$PLUGIN_ROOT/bin/darwin/x86_64/adb"
-fi
+mkdir -p "$PLUGIN_ROOT/licenses"
+cp "$TMP/platform-tools/NOTICE.txt" "$NOTICE_DEST"
+cp "$TMP/platform-tools/source.properties" "$PROPERTIES_DEST"
 
 echo "==> Installed: $DEST"
 "$DEST" version | head -1

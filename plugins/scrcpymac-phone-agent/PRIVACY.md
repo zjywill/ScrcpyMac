@@ -1,6 +1,6 @@
 # Privacy Policy — ScrcpyMac Phone Agent
 
-**Last updated:** 2026-07-18
+**Last updated:** 2026-07-23
 
 ## Summary
 
@@ -9,7 +9,8 @@ ScrcpyMac Phone Agent runs **entirely on your computer**. It does not send your 
 ## What runs locally
 
 - **adb** communication with your Android device over USB or Wi-Fi
-- **MCP server** (Python) started by Cursor, Codex, or Claude on your machine
+- **MCP server** (Go binary) started by Cursor, Codex, or Claude on your machine
+- **H.264 mirroring and control sessions** between the plugin and your Android device
 - **Screenshots and UI trees** passed only to the AI client you configured (e.g. Cursor)
 
 ## What we do not collect
@@ -27,7 +28,7 @@ When you use Cursor, Codex, or Claude, their privacy policies apply to how your 
 The plugin requires:
 
 - USB debugging on your Android device (your explicit consent on the phone)
-- Local execution of `adb` and Python on your Mac
+- Local execution of the bundled `adb` and `phone-agent` Go binary on your Mac
 
 ## Contact
 

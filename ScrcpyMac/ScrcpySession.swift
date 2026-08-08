@@ -160,68 +160,6 @@ final class ScrcpySession: ObservableObject {
         decoder.displayLayer = displayLayer
     }
 
-    /// Latest mirror surface for Agent Service screenshots (low-res fallback).
-    var mirrorDisplayLayer: AVSampleBufferDisplayLayer? {
-        decoder.displayLayer
-    }
-
-    /// Device serial when connected (for Agent HTTP responses).
-    var connectedSerial: String? {
-        guard case .connected = state else { return nil }
-        return serial
-    }
-
-    /// Full-resolution PNG from the latest decoded H.264 frame. Marked
-    /// `nonisolated` so the CIImage render + PNG encode run off the main actor.
-    nonisolated func captureDecoderFramePNG() -> Data? {
-        decoder.latestFramePNG()
-    }
-
-    /// Toggle the decoder's screenshot cache. Enabled only while the Agent
-    /// service is running so mirroring alone doesn't pay for a second decode.
-    func setAgentCaptureEnabled(_ enabled: Bool) {
-        decoder.captureEnabled = enabled
-    }
-
-    /// Connected device metadata for screenshot HTTP headers.
-    func screenshotMetadata() -> (serial: String, width: Int, height: Int)? {
-        guard case let .connected(meta) = state else { return nil }
-        return (serial, meta.width, meta.height)
-    }
-
-    /// Accessibility tree XML via adb uiautomator (Agent `/ui-tree`).
-    func agentUITreeXML() async throws -> String {
-        guard case .connected = state, !serial.isEmpty else {
-            throw AgentServiceError.notConnected
-        }
-        // One adb round trip instead of three (dump + cat + rm).
-        let remote = "/sdcard/window_dump.xml"
-        let command = "uiautomator dump \(remote) >/dev/null 2>&1 && cat \(remote); rm -f \(remote)"
-        return try await adb.run(["shell", command], serial: serial)
-    }
-
-    /// Foreground app via session adb (`GET /foreground`).
-    func agentForegroundApp() async throws -> [String: String] {
-        guard case .connected = state, !serial.isEmpty else {
-            throw AgentServiceError.notConnected
-        }
-        let output = try await adb.run(
-            ["shell", "dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' | head -1"],
-            serial: serial
-        )
-        var package = ""
-        var activity = ""
-        if let regex = try? NSRegularExpression(pattern: #"([a-zA-Z0-9_.]+)/([a-zA-Z0-9_.$]+)"#),
-           let match = regex.firstMatch(in: output, range: NSRange(output.startIndex..., in: output)),
-           match.numberOfRanges >= 3,
-           let pkgRange = Range(match.range(at: 1), in: output),
-           let actRange = Range(match.range(at: 2), in: output) {
-            package = String(output[pkgRange])
-            activity = String(output[actRange])
-        }
-        return ["package": package, "activity": activity, "raw": output.trimmingCharacters(in: .whitespacesAndNewlines)]
-    }
-
     /// Forward a pointer event from the mirror view. `viewPoint` is in the
     /// view's coordinate system (top-left origin, isFlipped view); `viewSize`
     /// is the view's current bounds. We linearly map to device pixel space

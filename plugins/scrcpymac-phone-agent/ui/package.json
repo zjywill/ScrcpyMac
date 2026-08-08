@@ -1,0 +1,22 @@
+{
+  "name": "scrcpymac-codex-widget",
+  "version": "0.7.2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "1.7.4",
+    "lucide": "0.468.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.3.6",
+    "vite-plugin-singlefile": "2.3.3"
+  },
+  "overrides": {
+    "@hono/node-server": "2.0.11"
+  }
+}

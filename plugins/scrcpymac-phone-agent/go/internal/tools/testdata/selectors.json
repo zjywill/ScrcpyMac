@@ -1,0 +1,581 @@
+[
+  {
+    "name": "text-substring",
+    "fixture": "settings_home.xml",
+    "text": [
+      "帐号"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "text=['帐号']",
+    "match_count": 2,
+    "match_indexes": [
+      8,
+      9
+    ],
+    "matched": "{\n  \"index\": 8,\n  \"text\": \"帐号\",\n  \"content_desc\": \"\",\n  \"resource_id\": \"android:id/title\",\n  \"class\": \"android.widget.TextView\",\n  \"clickable\": false,\n  \"bounds\": \"[265,543][361,608]\",\n  \"center\": [\n    313,\n    575\n  ]\n}"
+  },
+  {
+    "name": "text-substring-index1",
+    "fixture": "settings_home.xml",
+    "text": [
+      "帐号"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 1,
+    "describe": "text=['帐号']",
+    "match_count": 2,
+    "match_indexes": [
+      8,
+      9
+    ],
+    "matched": "{\n  \"index\": 9,\n  \"text\": \"一加帐号、其他帐号\",\n  \"content_desc\": \"\",\n  \"resource_id\": \"android:id/summary\",\n  \"class\": \"android.widget.TextView\",\n  \"clickable\": false,\n  \"bounds\": \"[265,614][616,667]\",\n  \"center\": [\n    440,\n    640\n  ]\n}"
+  },
+  {
+    "name": "text-substring-index-oob",
+    "fixture": "settings_home.xml",
+    "text": [
+      "帐号"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 999,
+    "describe": "text=['帐号']",
+    "match_count": 2,
+    "match_indexes": [
+      8,
+      9
+    ],
+    "matched": null
+  },
+  {
+    "name": "text-negative-index",
+    "fixture": "settings_home.xml",
+    "text": [
+      "帐号"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": -1,
+    "describe": "text=['帐号']",
+    "match_count": 2,
+    "match_indexes": [
+      8,
+      9
+    ],
+    "matched": null
+  },
+  {
+    "name": "text-exact-hit",
+    "fixture": "settings_home.xml",
+    "text": [
+      "帐号"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": true,
+    "index": 0,
+    "describe": "text=['帐号'], exact=True",
+    "match_count": 1,
+    "match_indexes": [
+      8
+    ],
+    "matched": "{\n  \"index\": 8,\n  \"text\": \"帐号\",\n  \"content_desc\": \"\",\n  \"resource_id\": \"android:id/title\",\n  \"class\": \"android.widget.TextView\",\n  \"clickable\": false,\n  \"bounds\": \"[265,543][361,608]\",\n  \"center\": [\n    313,\n    575\n  ]\n}"
+  },
+  {
+    "name": "text-exact-miss",
+    "fixture": "settings_home.xml",
+    "text": [
+      "帐"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": true,
+    "index": 0,
+    "describe": "text=['帐'], exact=True",
+    "match_count": 0,
+    "match_indexes": [],
+    "matched": null
+  },
+  {
+    "name": "desc-only",
+    "fixture": "settings_home.xml",
+    "text": [],
+    "content_desc": [
+      "搜索"
+    ],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "content_desc=['搜索']",
+    "match_count": 1,
+    "match_indexes": [
+      1
+    ],
+    "matched": "{\n  \"index\": 1,\n  \"text\": \"\",\n  \"content_desc\": \"搜索设置\",\n  \"resource_id\": \"com.android.settings:id/action_search\",\n  \"class\": \"android.widget.TextView\",\n  \"clickable\": true,\n  \"bounds\": \"[921,140][1056,266]\",\n  \"center\": [\n    988,\n    203\n  ]\n}"
+  },
+  {
+    "name": "class-substring",
+    "fixture": "settings_home.xml",
+    "text": [],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [
+      "TextView"
+    ],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "class=['TextView']",
+    "match_count": 18,
+    "match_indexes": [
+      1,
+      2,
+      5,
+      6,
+      8,
+      9,
+      11,
+      12,
+      14,
+      15,
+      17,
+      18,
+      20,
+      21,
+      23,
+      24,
+      26,
+      27
+    ],
+    "matched": "{\n  \"index\": 1,\n  \"text\": \"\",\n  \"content_desc\": \"搜索设置\",\n  \"resource_id\": \"com.android.settings:id/action_search\",\n  \"class\": \"android.widget.TextView\",\n  \"clickable\": true,\n  \"bounds\": \"[921,140][1056,266]\",\n  \"center\": [\n    988,\n    203\n  ]\n}"
+  },
+  {
+    "name": "clickable-container",
+    "fixture": "settings_home.xml",
+    "text": [],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [
+      "LinearLayout"
+    ],
+    "require_all": false,
+    "exact": false,
+    "index": 2,
+    "describe": "class=['LinearLayout']",
+    "match_count": 8,
+    "match_indexes": [
+      4,
+      7,
+      10,
+      13,
+      16,
+      19,
+      22,
+      25
+    ],
+    "matched": "{\n  \"index\": 10,\n  \"text\": \"\",\n  \"content_desc\": \"\",\n  \"resource_id\": \"\",\n  \"class\": \"android.widget.LinearLayout\",\n  \"clickable\": true,\n  \"bounds\": \"[0,717][1080,913]\",\n  \"center\": [\n    540,\n    815\n  ]\n}"
+  },
+  {
+    "name": "resource-id-substring",
+    "fixture": "flags.xml",
+    "text": [],
+    "content_desc": [],
+    "resource_id": [
+      "menu_search"
+    ],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "resource_id=['menu_search']",
+    "match_count": 1,
+    "match_indexes": [
+      6
+    ],
+    "matched": "{\n  \"index\": 6,\n  \"text\": \"搜索\",\n  \"content_desc\": \"搜索 Search\",\n  \"resource_id\": \"com.tencent.mm:id/menu_search\",\n  \"class\": \"android.widget.TextView\",\n  \"clickable\": true,\n  \"bounds\": \"[0,700][1080,800]\",\n  \"center\": [\n    540,\n    750\n  ],\n  \"selected\": true\n}"
+  },
+  {
+    "name": "cjk-alternatives",
+    "fixture": "flags.xml",
+    "text": [
+      "搜索",
+      "Search"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "text=['搜索', 'Search']",
+    "match_count": 1,
+    "match_indexes": [
+      6
+    ],
+    "matched": "{\n  \"index\": 6,\n  \"text\": \"搜索\",\n  \"content_desc\": \"搜索 Search\",\n  \"resource_id\": \"com.tencent.mm:id/menu_search\",\n  \"class\": \"android.widget.TextView\",\n  \"clickable\": true,\n  \"bounds\": \"[0,700][1080,800]\",\n  \"center\": [\n    540,\n    750\n  ],\n  \"selected\": true\n}"
+  },
+  {
+    "name": "cjk-desc-alternatives",
+    "fixture": "flags.xml",
+    "text": [],
+    "content_desc": [
+      "搜索",
+      "Search"
+    ],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "content_desc=['搜索', 'Search']",
+    "match_count": 1,
+    "match_indexes": [
+      6
+    ],
+    "matched": "{\n  \"index\": 6,\n  \"text\": \"搜索\",\n  \"content_desc\": \"搜索 Search\",\n  \"resource_id\": \"com.tencent.mm:id/menu_search\",\n  \"class\": \"android.widget.TextView\",\n  \"clickable\": true,\n  \"bounds\": \"[0,700][1080,800]\",\n  \"center\": [\n    540,\n    750\n  ],\n  \"selected\": true\n}"
+  },
+  {
+    "name": "any-of-two-attributes",
+    "fixture": "flags.xml",
+    "text": [
+      "Wi-Fi"
+    ],
+    "content_desc": [],
+    "resource_id": [
+      "password"
+    ],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "text=['Wi-Fi'], resource_id=['password']",
+    "match_count": 2,
+    "match_indexes": [
+      1,
+      3
+    ],
+    "matched": "{\n  \"index\": 1,\n  \"text\": \"Wi-Fi\",\n  \"content_desc\": \"\",\n  \"resource_id\": \"com.example.flags:id/wifi\",\n  \"class\": \"android.widget.Switch\",\n  \"clickable\": true,\n  \"bounds\": \"[0,200][1080,300]\",\n  \"center\": [\n    540,\n    250\n  ],\n  \"checkable\": true,\n  \"checked\": false\n}"
+  },
+  {
+    "name": "require-all-hit",
+    "fixture": "flags.xml",
+    "text": [
+      "Wi-Fi"
+    ],
+    "content_desc": [],
+    "resource_id": [
+      "wifi"
+    ],
+    "class_name": [],
+    "require_all": true,
+    "exact": false,
+    "index": 0,
+    "describe": "text=['Wi-Fi'], resource_id=['wifi'], require_all=True",
+    "match_count": 1,
+    "match_indexes": [
+      1
+    ],
+    "matched": "{\n  \"index\": 1,\n  \"text\": \"Wi-Fi\",\n  \"content_desc\": \"\",\n  \"resource_id\": \"com.example.flags:id/wifi\",\n  \"class\": \"android.widget.Switch\",\n  \"clickable\": true,\n  \"bounds\": \"[0,200][1080,300]\",\n  \"center\": [\n    540,\n    250\n  ],\n  \"checkable\": true,\n  \"checked\": false\n}"
+  },
+  {
+    "name": "require-all-miss",
+    "fixture": "flags.xml",
+    "text": [
+      "Wi-Fi"
+    ],
+    "content_desc": [],
+    "resource_id": [
+      "password"
+    ],
+    "class_name": [],
+    "require_all": true,
+    "exact": false,
+    "index": 0,
+    "describe": "text=['Wi-Fi'], resource_id=['password'], require_all=True",
+    "match_count": 0,
+    "match_indexes": [],
+    "matched": null
+  },
+  {
+    "name": "disabled-skipped",
+    "fixture": "flags.xml",
+    "text": [
+      "Greyed out"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "text=['Greyed out']",
+    "match_count": 0,
+    "match_indexes": [],
+    "matched": null
+  },
+  {
+    "name": "disabled-skipped-all-flags",
+    "fixture": "flags.xml",
+    "text": [
+      "Everything"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "text=['Everything']",
+    "match_count": 0,
+    "match_indexes": [],
+    "matched": null
+  },
+  {
+    "name": "exact-hit",
+    "fixture": "flags.xml",
+    "text": [
+      "Padded"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": true,
+    "index": 0,
+    "describe": "text=['Padded'], exact=True",
+    "match_count": 1,
+    "match_indexes": [
+      5
+    ],
+    "matched": "{\n  \"index\": 5,\n  \"text\": \"Padded\",\n  \"content_desc\": \"Spaced desc\",\n  \"resource_id\": \"\",\n  \"class\": \"android.widget.TextView\",\n  \"clickable\": false,\n  \"bounds\": \"[0,600][1080,700]\",\n  \"center\": [\n    540,\n    650\n  ]\n}"
+  },
+  {
+    "name": "exact-miss-substring",
+    "fixture": "flags.xml",
+    "text": [
+      "Padde"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": true,
+    "index": 0,
+    "describe": "text=['Padde'], exact=True",
+    "match_count": 0,
+    "match_indexes": [],
+    "matched": null
+  },
+  {
+    "name": "html-chars",
+    "fixture": "flags.xml",
+    "text": [
+      "Tom & Jerry <b>"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "text=['Tom & Jerry <b>']",
+    "match_count": 1,
+    "match_indexes": [
+      7
+    ],
+    "matched": "{\n  \"index\": 7,\n  \"text\": \"Tom & Jerry <b>\",\n  \"content_desc\": \"a \\\"quoted\\\" desc\",\n  \"resource_id\": \"\",\n  \"class\": \"android.widget.TextView\",\n  \"clickable\": false,\n  \"bounds\": \"[0,800][1080,900]\",\n  \"center\": [\n    540,\n    850\n  ]\n}"
+  },
+  {
+    "name": "quote-in-needle",
+    "fixture": "flags.xml",
+    "text": [],
+    "content_desc": [
+      "a \"quoted\" desc"
+    ],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "content_desc=['a \"quoted\" desc']",
+    "match_count": 1,
+    "match_indexes": [
+      7
+    ],
+    "matched": "{\n  \"index\": 7,\n  \"text\": \"Tom & Jerry <b>\",\n  \"content_desc\": \"a \\\"quoted\\\" desc\",\n  \"resource_id\": \"\",\n  \"class\": \"android.widget.TextView\",\n  \"clickable\": false,\n  \"bounds\": \"[0,800][1080,900]\",\n  \"center\": [\n    540,\n    850\n  ]\n}"
+  },
+  {
+    "name": "apostrophe-needle",
+    "fixture": "flags.xml",
+    "text": [
+      "it's"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "text=[\"it's\"]",
+    "match_count": 0,
+    "match_indexes": [],
+    "matched": null
+  },
+  {
+    "name": "no-bounds-node",
+    "fixture": "flags.xml",
+    "text": [
+      "No bounds"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "text=['No bounds']",
+    "match_count": 1,
+    "match_indexes": [
+      9
+    ],
+    "matched": "{\n  \"index\": 9,\n  \"text\": \"No bounds\",\n  \"content_desc\": \"\",\n  \"resource_id\": \"\",\n  \"class\": \"android.widget.TextView\",\n  \"clickable\": true,\n  \"bounds\": \"\",\n  \"center\": null\n}"
+  },
+  {
+    "name": "trailing-junk-bounds",
+    "fixture": "flags.xml",
+    "text": [
+      "Trailing junk"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "text=['Trailing junk']",
+    "match_count": 1,
+    "match_indexes": [
+      10
+    ],
+    "matched": "{\n  \"index\": 10,\n  \"text\": \"Trailing junk bounds\",\n  \"content_desc\": \"\",\n  \"resource_id\": \"\",\n  \"class\": \"android.widget.TextView\",\n  \"clickable\": true,\n  \"bounds\": \"[0,1000][1081,1101]tail\",\n  \"center\": [\n    540,\n    1050\n  ]\n}"
+  },
+  {
+    "name": "empty-string-dropped",
+    "fixture": "flags.xml",
+    "text": [
+      "",
+      "Wi-Fi"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "text=['Wi-Fi']",
+    "match_count": 1,
+    "match_indexes": [
+      1
+    ],
+    "matched": "{\n  \"index\": 1,\n  \"text\": \"Wi-Fi\",\n  \"content_desc\": \"\",\n  \"resource_id\": \"com.example.flags:id/wifi\",\n  \"class\": \"android.widget.Switch\",\n  \"clickable\": true,\n  \"bounds\": \"[0,200][1080,300]\",\n  \"center\": [\n    540,\n    250\n  ],\n  \"checkable\": true,\n  \"checked\": false\n}"
+  },
+  {
+    "name": "webview-class",
+    "fixture": "chrome_webview.xml",
+    "text": [],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [
+      "WebView"
+    ],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "class=['WebView']",
+    "match_count": 1,
+    "match_indexes": [
+      0
+    ],
+    "matched": "{\n  \"index\": 0,\n  \"text\": \"\",\n  \"content_desc\": \"\",\n  \"resource_id\": \"\",\n  \"class\": \"android.webkit.WebView\",\n  \"clickable\": false,\n  \"bounds\": \"[0,248][1080,2153]\",\n  \"center\": [\n    540,\n    1200\n  ],\n  \"scrollable\": true,\n  \"focused\": true\n}"
+  },
+  {
+    "name": "compose-desc",
+    "fixture": "sparse_dialog.xml",
+    "text": [],
+    "content_desc": [
+      "Close"
+    ],
+    "resource_id": [],
+    "class_name": [],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "content_desc=['Close']",
+    "match_count": 1,
+    "match_indexes": [
+      3
+    ],
+    "matched": "{\n  \"index\": 3,\n  \"text\": \"\",\n  \"content_desc\": \"Close\",\n  \"resource_id\": \"\",\n  \"class\": \"android.widget.Button\",\n  \"clickable\": true,\n  \"bounds\": \"[940,100][1040,200]\",\n  \"center\": [\n    990,\n    150\n  ]\n}"
+  },
+  {
+    "name": "class-and-text-any",
+    "fixture": "settings_display.xml",
+    "text": [
+      "Display"
+    ],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [
+      "Switch"
+    ],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "text=['Display'], class=['Switch']",
+    "match_count": 1,
+    "match_indexes": [
+      5
+    ],
+    "matched": "{\n  \"index\": 5,\n  \"text\": \"\",\n  \"content_desc\": \"\",\n  \"resource_id\": \"android:id/switch_widget\",\n  \"class\": \"android.widget.Switch\",\n  \"clickable\": false,\n  \"bounds\": \"[937,556][1039,613]\",\n  \"center\": [\n    988,\n    584\n  ],\n  \"checkable\": true,\n  \"checked\": true\n}"
+  },
+  {
+    "name": "switch-checkable",
+    "fixture": "settings_display.xml",
+    "text": [],
+    "content_desc": [],
+    "resource_id": [],
+    "class_name": [
+      "Switch"
+    ],
+    "require_all": false,
+    "exact": false,
+    "index": 0,
+    "describe": "class=['Switch']",
+    "match_count": 1,
+    "match_indexes": [
+      5
+    ],
+    "matched": "{\n  \"index\": 5,\n  \"text\": \"\",\n  \"content_desc\": \"\",\n  \"resource_id\": \"android:id/switch_widget\",\n  \"class\": \"android.widget.Switch\",\n  \"clickable\": false,\n  \"bounds\": \"[937,556][1039,613]\",\n  \"center\": [\n    988,\n    584\n  ],\n  \"checkable\": true,\n  \"checked\": true\n}"
+  }
+]
