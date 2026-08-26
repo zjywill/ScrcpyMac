@@ -163,6 +163,10 @@ enum ControlMessage {
 
 /// Minimal AppKit -> Android key mapping for scrcpy keyboard injection.
 enum AndroidKeycode {
+    static let home: Int32 = 3
+    static let back: Int32 = 4
+    static let appSwitch: Int32 = 187
+
     static let metaShiftOn: Int32 = 0x00000001
     static let metaAltOn: Int32 = 0x00000002
     static let metaCtrlOn: Int32 = 0x00001000

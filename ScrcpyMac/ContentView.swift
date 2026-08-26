@@ -67,6 +67,23 @@ private struct IconButtonStyle: ButtonStyle {
     }
 }
 
+private struct MirrorNavigationButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(.white.opacity(configuration.isPressed ? 0.65 : 0.92))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                Color.white.opacity(configuration.isPressed ? 0.12 : 0.001)
+            )
+            .opacity(isEnabled ? 1 : 0.35)
+            .scaleEffect(configuration.isPressed ? 0.92 : 1)
+            .animation(.press, value: configuration.isPressed)
+            .contentShape(Rectangle())
+    }
+}
+
 // MARK: - ContentView
 
 struct ContentView: View {
@@ -452,7 +469,16 @@ struct ContentView: View {
     // MARK: Mirror pane
 
     private var mirrorPane: some View {
-        ZStack {
+        VStack(spacing: 0) {
+            mirrorSurface
+            mirrorNavigationBar
+                .frame(height: 44)
+        }
+        .background(Color.black)
+    }
+
+    private var mirrorSurface: some View {
+        ZStack(alignment: .bottomTrailing) {
             // Always-present sample-buffer surface; decoder pushes frames to
             // its layer as soon as the session is connected.
             MirrorView(
@@ -467,6 +493,53 @@ struct ContentView: View {
             }
         }
         .animation(.easeOut(duration: 0.35), value: isConnected)
+    }
+
+    private var mirrorNavigationBar: some View {
+        HStack(spacing: 0) {
+            mirrorNavigationButton(
+                systemImage: "triangle.fill",
+                label: "Back",
+                keycode: AndroidKeycode.back,
+                rotationDegrees: -90
+            )
+
+            mirrorNavigationButton(
+                systemImage: "circle",
+                label: "Home",
+                keycode: AndroidKeycode.home
+            )
+
+            mirrorNavigationButton(
+                systemImage: "square",
+                label: "Recent apps",
+                keycode: AndroidKeycode.appSwitch
+            )
+        }
+        .background(Color(white: 0.08))
+        .overlay(alignment: .top) {
+            Divider()
+                .overlay(.white.opacity(0.12))
+        }
+    }
+
+    private func mirrorNavigationButton(
+        systemImage: String,
+        label: String,
+        keycode: Int32,
+        rotationDegrees: Double = 0
+    ) -> some View {
+        Button {
+            session.sendKeyPress(keycode: keycode)
+        } label: {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .rotationEffect(.degrees(rotationDegrees))
+        }
+        .buttonStyle(MirrorNavigationButtonStyle())
+        .disabled(!isConnected)
+        .accessibilityLabel(label)
+        .help(label)
     }
 
     @ViewBuilder

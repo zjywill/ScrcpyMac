@@ -215,6 +215,13 @@ final class ScrcpySession: ObservableObject {
         send(control: data)
     }
 
+    func sendKeyPress(keycode: Int32) {
+        guard case .connected = state else { return }
+        var data = ControlMessage.injectKeycode(action: .down, keycode: keycode)
+        data.append(ControlMessage.injectKeycode(action: .up, keycode: keycode))
+        send(control: data)
+    }
+
     func sendText(_ text: String) {
         guard case .connected = state else { return }
         guard !text.isEmpty else { return }
