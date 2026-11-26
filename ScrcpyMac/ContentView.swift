@@ -100,6 +100,8 @@ struct ContentView: View {
     @State private var showWifiPopover: Bool = false
     @State private var wifiAddress: String = ""
     @State private var wifiError: String?
+    @State private var adbKeyboardState: DeviceManager.AdbKeyboardState = .unknown
+    @State private var isSwitchingAdbKeyboard = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -120,6 +122,14 @@ struct ContentView: View {
         }
         .frame(width: 620, height: 700)
         .task { await deviceManager.refresh() }
+        .task(id: adbKeyboardRefreshKey) {
+            // The IME can change behind our back (switched on the phone, or by
+            // another adb client), so keep polling while a device is selected.
+            while !Task.isCancelled {
+                if !isSwitchingAdbKeyboard { await refreshAdbKeyboardState() }
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+            }
+        }
     }
 
     // MARK: Sidebar
@@ -337,6 +347,12 @@ struct ContentView: View {
         }
     }
 
+    /// Re-query the device IME whenever the selection or device list changes
+    /// (the refresh button also re-reads it).
+    private var adbKeyboardRefreshKey: String {
+        "\(selectedSerial ?? "")|\(deviceManager.devices.map { "\($0.serial):\($0.state)" }.joined(separator: ","))|\(deviceManager.isRefreshing)"
+    }
+
     private var optionsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             sectionLabel("Options")
@@ -352,12 +368,62 @@ struct ContentView: View {
                 optionDivider
                 optionRow("Video only", icon: "video", isOn: $videoOnly)
                     .disabled(audioOnly)
+                optionDivider
+                optionRow(adbKeyboardTitle, icon: "keyboard", isOn: adbKeyboardBinding)
+                    .disabled(!canToggleAdbKeyboard)
+                    .help(adbKeyboardHelp)
             }
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .fill(Color.primary.opacity(0.05))
             )
         }
+    }
+
+    private var adbKeyboardTitle: String {
+        adbKeyboardState == .notInstalled ? "ADB Keyboard (not installed)" : "ADB Keyboard"
+    }
+
+    private var adbKeyboardHelp: String {
+        switch adbKeyboardState {
+        case .notInstalled: return "Install ADBKeyBoard (com.android.adbkeyboard) on the device to use it."
+        case .on: return "ADB Keyboard is the device's input method. Turn off to restore the previous keyboard."
+        default: return "Switch the device's input method to ADB Keyboard."
+        }
+    }
+
+    private var canToggleAdbKeyboard: Bool {
+        guard selectedSerial != nil, !isSwitchingAdbKeyboard else { return false }
+        return adbKeyboardState == .on || adbKeyboardState == .off
+    }
+
+    private var adbKeyboardBinding: Binding<Bool> {
+        Binding(
+            get: { adbKeyboardState == .on },
+            set: { newValue in
+                guard let serial = selectedSerial else { return }
+                isSwitchingAdbKeyboard = true
+                adbKeyboardState = newValue ? .on : .off
+                Task {
+                    let result = await deviceManager.setAdbKeyboard(serial: serial, enabled: newValue)
+                    if selectedSerial == serial { adbKeyboardState = result }
+                    isSwitchingAdbKeyboard = false
+                }
+            }
+        )
+    }
+
+    private func refreshAdbKeyboardState() async {
+        guard let serial = selectedSerial,
+              deviceManager.devices.first(where: { $0.serial == serial })?.state == "device" else {
+            adbKeyboardState = .unknown
+            return
+        }
+        let state = await deviceManager.adbKeyboardState(serial: serial)
+        // Drop results that raced with a user toggle or a transient adb error.
+        guard selectedSerial == serial, !isSwitchingAdbKeyboard,
+              state != .unknown || adbKeyboardState == .unknown else { return }
+        adbKeyboardState = state
     }
 
     private var optionDivider: some View {

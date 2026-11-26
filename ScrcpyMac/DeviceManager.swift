@@ -80,6 +80,68 @@ final class DeviceManager: ObservableObject {
         return nil
     }
 
+    // MARK: ADB Keyboard
+
+    enum AdbKeyboardState: Equatable {
+        case unknown, notInstalled, on, off
+    }
+
+    static let adbKeyboardIME = "com.android.adbkeyboard/.AdbIME"
+    private static let previousIMEKeyPrefix = "previousIME."
+
+    /// Whether ADB Keyboard is installed and currently the default IME.
+    func adbKeyboardState(serial: String) async -> AdbKeyboardState {
+        guard let packages = try? await runAdb(["-s", serial, "shell", "pm", "list", "packages", "com.android.adbkeyboard"]) else {
+            return .unknown
+        }
+        guard packages.contains("package:com.android.adbkeyboard") else { return .notInstalled }
+        let current = await currentIME(serial: serial)
+        return current == Self.adbKeyboardIME ? .on : .off
+    }
+
+    /// Switch the device's default input method to ADB Keyboard, or back to
+    /// the IME that was active before. Returns the resulting state.
+    func setAdbKeyboard(serial: String, enabled: Bool) async -> AdbKeyboardState {
+        let defaults = UserDefaults.standard
+        let key = Self.previousIMEKeyPrefix + serial
+        if enabled {
+            if let current = await currentIME(serial: serial), current != Self.adbKeyboardIME {
+                defaults.set(current, forKey: key)
+            }
+            _ = try? await runAdb(["-s", serial, "shell", "ime", "enable", Self.adbKeyboardIME])
+            _ = try? await runAdb(["-s", serial, "shell", "ime", "set", Self.adbKeyboardIME])
+        } else {
+            let enabledIMEs = (try? await runAdb(["-s", serial, "shell", "ime", "list", "-s"]))?
+                .split(whereSeparator: \.isNewline)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty } ?? []
+            let candidates = enabledIMEs.filter { $0 != Self.adbKeyboardIME }
+            let saved = defaults.string(forKey: key)
+            // Prefer the IME we replaced; otherwise the first real keyboard
+            // (skip voice input and autofill proxies, which aren't keyboards).
+            let target = (saved.flatMap { candidates.contains($0) ? $0 : nil })
+                ?? candidates.first(where: { id in
+                    let lower = id.lowercased()
+                    return !lower.contains("voice") && !lower.contains("autofill")
+                })
+                ?? candidates.first
+            if let target {
+                _ = try? await runAdb(["-s", serial, "shell", "ime", "set", target])
+            } else {
+                // No other IME enabled: disabling ADB Keyboard makes Android
+                // fall back to its default keyboard.
+                _ = try? await runAdb(["-s", serial, "shell", "ime", "disable", Self.adbKeyboardIME])
+            }
+        }
+        return await adbKeyboardState(serial: serial)
+    }
+
+    private func currentIME(serial: String) async -> String? {
+        let value = try? await runAdb(["-s", serial, "shell", "settings", "get", "secure", "default_input_method"])
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (trimmed?.isEmpty ?? true) || trimmed == "null" ? nil : trimmed
+    }
+
     private func runAdb(_ args: [String]) async throws -> String {
         try await Task.detached(priority: .userInitiated) { [toolchain] in
             try ProcessRunner.runCapturing(url: toolchain.adbURL, args: args)
