@@ -481,26 +481,30 @@ final class ScrcpySession: ObservableObject {
             )
         }
 
+        // 64-byte device name + 4-byte codec id, then the first session
+        // packet with the initial frame size.
         let nameAndCodec = try await receiveExactly(
             from: video,
-            count: ScrcpyProtocol.deviceNameFieldLength + 12
+            count: ScrcpyProtocol.deviceNameFieldLength + 4
         )
 
         let nameEnd = ScrcpyProtocol.deviceNameFieldLength
         let nameBytes = nameAndCodec[0..<nameEnd]
         let terminated = nameBytes.prefix { $0 != 0 }
         let deviceName = String(data: terminated, encoding: .utf8) ?? "?"
-
         let codecId = nameAndCodec.readBigEndian(UInt32.self, at: nameEnd)
-        let width = nameAndCodec.readBigEndian(UInt32.self, at: nameEnd + 4)
-        let height = nameAndCodec.readBigEndian(UInt32.self, at: nameEnd + 8)
+
+        let sessionHeader = try await receiveExactly(from: video, count: ScrcpyProtocol.frameHeaderLength)
+        guard case .session(let width, let height)? = ScrcpyStreamPacket.parse(sessionHeader) else {
+            throw SessionError.badHandshake
+        }
 
         return ScrcpyDeviceMeta(
             deviceName: deviceName,
             videoCodec: ScrcpyProtocol.VideoCodec(rawValue: codecId),
             rawCodecId: codecId,
-            width: Int(width),
-            height: Int(height)
+            width: width,
+            height: height
         )
     }
 
@@ -577,7 +581,28 @@ final class ScrcpySession: ObservableObject {
         while !Task.isCancelled {
             do {
                 let header = try await receiveExactly(from: conn, count: ScrcpyProtocol.frameHeaderLength)
-                guard let info = ScrcpyVideoPacketHeader.parse(header) else {
+                let info: ScrcpyVideoPacketHeader
+                switch ScrcpyStreamPacket.parse(header) {
+                case .media(let media)?:
+                    info = media
+                case .session(let width, let height)?:
+                    // New capture session (e.g. rotation): keep the size used
+                    // for touch mapping in sync with the stream.
+                    await MainActor.run {
+                        guard token == self.runToken,
+                              case .connected(let meta) = self.state,
+                              meta.width != width || meta.height != height else { return }
+                        self.appendLog("[video] session · \(width)x\(height)")
+                        self.state = .connected(ScrcpyDeviceMeta(
+                            deviceName: meta.deviceName,
+                            videoCodec: meta.videoCodec,
+                            rawCodecId: meta.rawCodecId,
+                            width: width,
+                            height: height
+                        ))
+                    }
+                    continue
+                case nil:
                     await MainActor.run {
                         guard token == self.runToken else { return }
                         self.appendLog("[video] bad header")
@@ -685,11 +710,13 @@ final class ScrcpySession: ObservableObject {
 enum SessionError: Error, LocalizedError {
     case connectFailed
     case shortRead
+    case badHandshake
 
     var errorDescription: String? {
         switch self {
         case .connectFailed: return "TCP connection to scrcpy-server failed"
         case .shortRead: return "Short read from scrcpy-server"
+        case .badHandshake: return "Unexpected handshake from scrcpy-server (version mismatch?)"
         }
     }
 }

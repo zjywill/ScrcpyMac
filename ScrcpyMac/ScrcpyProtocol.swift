@@ -1,11 +1,11 @@
 import Foundation
 
-/// Wire-format constants + parsers for the scrcpy server protocol (v3.3.4).
+/// Wire-format constants + parsers for the scrcpy server protocol (v4.1).
 /// The authoritative spec is Genymobile/scrcpy under server/src/main/java/...
 enum ScrcpyProtocol {
     /// Version string passed as the first argument when invoking the server
     /// via `app_process`. Must match the server jar's build version.
-    static let version = "3.3.4"
+    static let version = "4.1"
 
     /// Fixed-size device name field (UTF-8, zero-padded / zero-terminated).
     static let deviceNameFieldLength = 64
@@ -14,12 +14,16 @@ enum ScrcpyProtocol {
     /// 8 bytes pts+flags (big-endian) + 4 bytes packet size (big-endian).
     static let frameHeaderLength = 12
 
-    /// Top bit of the pts field: this is a codec-config packet (e.g. SPS/PPS).
-    static let packetFlagConfig: UInt64 = 1 << 63
-    /// Second-highest bit: this is a keyframe.
-    static let packetFlagKeyFrame: UInt64 = 1 << 62
+    /// Top bit of the first 8 bytes: this is a *session* packet (video only),
+    /// announcing the frame size of a new capture session (e.g. on rotation),
+    /// rather than a media packet.
+    static let packetFlagSession: UInt64 = 1 << 63
+    /// Media packets: this is a codec-config packet (e.g. SPS/PPS).
+    static let packetFlagConfig: UInt64 = 1 << 62
+    /// Media packets: this is a keyframe.
+    static let packetFlagKeyFrame: UInt64 = 1 << 61
     /// Mask to extract the raw PTS value.
-    static let packetPtsMask: UInt64 = (1 << 62) - 1
+    static let packetPtsMask: UInt64 = (1 << 61) - 1
 
     /// Video codec ids the server can announce. Four-char big-endian tags.
     enum VideoCodec: UInt32 {
@@ -38,8 +42,8 @@ enum ScrcpyProtocol {
 }
 
 /// Device metadata the server sends on the first (video) socket right after
-/// the optional one-byte handshake: a 64-byte UTF-8 name field followed by the
-/// 12-byte video codec header (codec id, width, height — all big-endian u32).
+/// the optional one-byte handshake: a 64-byte UTF-8 name field, the 4-byte
+/// video codec id, then the first 12-byte session packet carrying the size.
 struct ScrcpyDeviceMeta {
     let deviceName: String
     let videoCodec: ScrcpyProtocol.VideoCodec?
@@ -48,7 +52,27 @@ struct ScrcpyDeviceMeta {
     let height: Int
 }
 
-/// Per-frame header preceding each video payload on the video socket.
+/// 12-byte header on the video/audio sockets. On video it is either a session
+/// packet (frame size of a new capture session, no payload) or a media packet
+/// header followed by `size` bytes of payload. Audio only has media packets.
+enum ScrcpyStreamPacket {
+    case session(width: Int, height: Int)
+    case media(ScrcpyVideoPacketHeader)
+
+    static func parse(_ bytes: Data) -> ScrcpyStreamPacket? {
+        guard bytes.count >= ScrcpyProtocol.frameHeaderLength else { return nil }
+        let first = bytes.readBigEndian(UInt64.self, at: 0)
+        if first & ScrcpyProtocol.packetFlagSession != 0 {
+            return .session(
+                width: Int(bytes.readBigEndian(UInt32.self, at: 4)),
+                height: Int(bytes.readBigEndian(UInt32.self, at: 8))
+            )
+        }
+        return ScrcpyVideoPacketHeader.parse(bytes).map { .media($0) }
+    }
+}
+
+/// Header of a media packet on the video or audio socket.
 struct ScrcpyVideoPacketHeader {
     let isConfig: Bool
     let isKeyFrame: Bool

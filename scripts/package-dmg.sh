@@ -65,13 +65,36 @@ SERVER_CANDIDATES=(
   "/usr/local/share/scrcpy/scrcpy-server"
 )
 ADB_SRC=""; for c in "${ADB_CANDIDATES[@]}"; do [[ -x "$c" ]] && ADB_SRC="$c" && break; done
-SERVER_SRC=""; for c in "${SERVER_CANDIDATES[@]}"; do [[ -f "$c" ]] && SERVER_SRC="$c" && break; done
+# The client speaks one exact server protocol version (ScrcpyProtocol.version);
+# a mismatched jar exits immediately ("server version does not match") and the
+# app only sees "Short read from scrcpy-server". Homebrew upgrades scrcpy on
+# its own schedule, so verify the jar instead of trusting whatever is installed.
+# Override with SCRCPY_SERVER=/path/to/scrcpy-server-vX.Y.Z.
+PROTOCOL_VERSION="$(sed -n 's/.*static let version = "\(.*\)".*/\1/p' ScrcpyMac/ScrcpyProtocol.swift)"
+server_matches() {
+  # The version lives in classes.dex either as its own constant (3.x) or
+  # inlined into the mismatch error message (4.x, R8-optimized).
+  # No `grep -q`: it exits early, SIGPIPEs `strings`, and pipefail then fails.
+  local v="${PROTOCOL_VERSION//./\\.}"
+  unzip -p "$1" classes.dex 2>/dev/null | strings \
+    | grep -E -e "^${v}\$" -e "server version \(${v}\)" >/dev/null
+}
+if [[ -n "${SCRCPY_SERVER:-}" ]]; then
+  SERVER_CANDIDATES=("$SCRCPY_SERVER")
+fi
+SERVER_SRC=""
+for c in "${SERVER_CANDIDATES[@]}"; do
+  [[ -f "$c" ]] || continue
+  if server_matches "$c"; then SERVER_SRC="$c"; break; fi
+  echo "    skipping $c (not scrcpy-server $PROTOCOL_VERSION)" >&2
+done
 if [[ -z "$ADB_SRC" ]]; then
   echo "could not find adb — install platform-tools or scrcpy first" >&2
   exit 1
 fi
 if [[ -z "$SERVER_SRC" ]]; then
-  echo "could not find scrcpy-server — brew install scrcpy" >&2
+  echo "could not find scrcpy-server $PROTOCOL_VERSION — download scrcpy-server-v$PROTOCOL_VERSION" >&2
+  echo "from https://github.com/Genymobile/scrcpy/releases and pass SCRCPY_SERVER=/path/to/it" >&2
   exit 1
 fi
 

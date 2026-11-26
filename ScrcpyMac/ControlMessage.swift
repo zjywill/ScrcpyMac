@@ -1,7 +1,7 @@
 import Foundation
 import AppKit
 
-/// Encoders for scrcpy's client-to-device control protocol (v3.3.4). All
+/// Encoders for scrcpy's client-to-device control protocol (v4.1). All
 /// multi-byte fields are big-endian. Coordinates are in *device* pixel space,
 /// not the local view — the position struct tells the server what screen
 /// resolution those pixels are in so it can map them for any rotation.

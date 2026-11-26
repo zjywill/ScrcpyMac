@@ -34,7 +34,7 @@ bundled desktop scrcpy binary, no SDL, no ffmpeg. Only the `scrcpy-server.jar`
 - `ScrcpySession.swift` — lifecycle (push jar, adb forward, launch server,
   handshake, frame pump).
 - `ScrcpyProtocol.swift` — wire-format constants + handshake / frame-header
-  parsers for scrcpy v3.3.4.
+  parsers for scrcpy v4.1.
 - `H264Decoder.swift` — Annex-B → AVCC → `CMSampleBuffer`, fed to the display
   layer; format description built from the config packet's SPS+PPS.
 - `MirrorView.swift` — `NSViewRepresentable` hosting
